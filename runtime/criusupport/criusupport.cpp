@@ -1011,10 +1011,15 @@ Java_org_eclipse_openj9_criu_CRIUSupport_checkpointJVMImpl(JNIEnv *env,
 		if (J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
 			toggleSuspendOnJavaThreads(currentThread, FALSE, TRUE);
 		}
-
+		// j9tty_printf(PORTLIB, "finished 1\n");
 		releaseSafeOrExcusiveVMAccess(currentThread, vmFuncs, safePoint);
-
+		// j9tty_printf(PORTLIB, "before 2\n");
 		if (FALSE == vm->memoryManagerFunctions->j9gc_reinitialize_for_restore(currentThread, &nlsMsgFormat)) {
+			currentExceptionClass = vm->checkpointState.criuJVMRestoreExceptionClass;
+			goto wakeJavaThreads;
+		}
+		// vm->memoryManagerFunctions->j9gc_reinitialize_for_restore(currentThread, &nlsMsgFormat);
+		if (FALSE == vm->memoryManagerFunctions->j9gc_reinitialize_for_restore2(currentThread, &nlsMsgFormat)) {
 			currentExceptionClass = vm->checkpointState.criuJVMRestoreExceptionClass;
 			goto wakeJavaThreads;
 		}

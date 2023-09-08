@@ -1202,6 +1202,12 @@ j9gc_reinitialize_for_restore(J9VMThread *vmThread, const char **nlsMsgFormat)
 _error:
 	return false;
 }
+BOOLEAN
+j9gc_reinitialize_for_restore2(J9VMThread *vmThread, const char **nlsMsgFormat)
+{
+	return true;
+}
+
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 /* JAZZ 90354 Temporarily move obsolete GC table exported functions, to be removed shortly. */
