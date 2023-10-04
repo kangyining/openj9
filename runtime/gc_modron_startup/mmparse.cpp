@@ -974,8 +974,8 @@ gcParseSovereignArguments(J9JavaVM *vm)
 			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, VMOPT_XGCMAXTHREADS, (UDATA)0);
 			goto _error;
 		}
-
-		extensions->gcThreadCountForced = false;
+		extensions->gcThreadCountForced = true;
+		extensions->adaptiveGCThreading = true;
 	}
 
 	if(-1 != FIND_ARG_IN_VMARGS(EXACT_MEMORY_MATCH, "-Xgcworkpackets", NULL)) {
@@ -1267,6 +1267,7 @@ gcParseReconfigurableArguments(J9JavaVM* vm, J9VMInitArgs* args)
 		}
 
 		extensions->gcThreadCountForced = true;
+		extensions->adaptiveGCThreading = false;
 	}
 
 	return true;
@@ -1323,11 +1324,14 @@ gcParseXXArguments(J9JavaVM *vm)
 		IDATA adaptiveGCThreadingIndex = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:+AdaptiveGCThreading", NULL);
 		IDATA noAdaptiveGCThreadingIndex = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:-AdaptiveGCThreading", NULL);
 		if (adaptiveGCThreadingIndex != noAdaptiveGCThreadingIndex) {
+			extensions->userSpecifiedParameters._adaptiveGCThreading._wasSpecified = true;
 			/* At least one option is set. Find the right most one. */
 			if (adaptiveGCThreadingIndex > noAdaptiveGCThreadingIndex) {
 				extensions->adaptiveGCThreading = true;
+				extensions->userSpecifiedParameters._adaptiveGCThreading._valueSpecified = true;
 			} else {
 				extensions->adaptiveGCThreading = false;
+				extensions->userSpecifiedParameters._adaptiveGCThreading._valueSpecified = false;
 			}
 		}
 	}

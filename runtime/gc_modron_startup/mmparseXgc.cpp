@@ -154,6 +154,7 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 		}
 
 		extensions->gcThreadCountForced = true;
+		extensions->adaptiveGCThreading = false;
 		goto _exit;
 	}		
 	if(try_scan(scan_start, "noClassGC")) {
@@ -234,6 +235,7 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 		}
 
 		extensions->gcThreadCountForced = true;
+		extensions->adaptiveGCThreading = false;
 		goto _exit;
 	}
 

@@ -2742,6 +2742,7 @@ setConfigOptionsForNoGc(MM_GCExtensions *extensions)
 #endif /* defined(J9VM_GC_LARGE_OBJECT_AREA) */
 	/* 1 gcThread */
 	extensions->gcThreadCountForced = true;
+	extensions->adaptiveGCThreading = false;
 	extensions->gcThreadCount = 1;
 
 	extensions->splitFreeListSplitAmount = 1;
@@ -3183,6 +3184,7 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
 	extensions->gcThreadCountForced = false;
+	extensions->adaptiveGCThreading = true;
 	extensions->parSweepChunkSize = 0;
 
 	if (!gcParseReconfigurableArguments(vm, vm->checkpointState.restoreArgsList)) {
