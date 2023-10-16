@@ -1338,7 +1338,9 @@ gcParseXXArguments(J9JavaVM *vm)
 		if (adaptiveGCThreadingIndex != noAdaptiveGCThreadingIndex) {
 			/* At least one option is set. Find the right most one. */
 			if (adaptiveGCThreadingIndex > noAdaptiveGCThreadingIndex) {
-				extensions->adaptiveGCThreading = true;
+				if (!extensions->gcThreadCountForced) {
+					extensions->adaptiveGCThreading = true;
+				}
 			} else {
 				extensions->adaptiveGCThreading = false;
 			}
