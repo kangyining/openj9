@@ -958,26 +958,6 @@ gcParseSovereignArguments(J9JavaVM *vm)
 		extensions->heapContractionGCRatioThreshold._wasSpecified = true;
 	}
 
-	/* Handling VMOPT_XGCMAXTHREADS is equivalent to VMOPT_XGCTHREADS (above), except it sets gcThreadCountForced to false rather than true. */
-	if (-1 != FIND_ARG_IN_VMARGS(EXACT_MEMORY_MATCH, VMOPT_XGCMAXTHREADS, NULL)) {
-		result = option_set_to_opt_integer(vm, VMOPT_XGCMAXTHREADS, &index, EXACT_MEMORY_MATCH, &extensions->gcThreadCount);
-		if (OPTION_OK != result) {
-			if (OPTION_MALFORMED == result) {
-				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, VMOPT_XGCMAXTHREADS);
-			} else {
-				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_OVERFLOWED, VMOPT_XGCMAXTHREADS);
-			}
-			goto _error;
-		}
-
-		if (0 == extensions->gcThreadCount) {
-			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, VMOPT_XGCMAXTHREADS, (UDATA)0);
-			goto _error;
-		}
-
-		extensions->gcThreadCountForced = false;
-	}
-
 	if(-1 != FIND_ARG_IN_VMARGS(EXACT_MEMORY_MATCH, "-Xgcworkpackets", NULL)) {
 		result = option_set_to_opt_integer(vm, "-Xgcworkpackets", &index, EXACT_MEMORY_MATCH, &extensions->workpacketCount);
 		if (OPTION_OK != result) {
@@ -1247,11 +1227,14 @@ gcParseReconfigurableArguments(J9JavaVM* vm, J9VMInitArgs* args)
 	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(vm);
 	IDATA index = -1;
 	IDATA result = 0;
-
+	IDATA gcthread_index = -1;
+	IDATA maxgcthread_index = -1;
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
 	if (-1 != FIND_ARG_IN_ARGS(args, EXACT_MEMORY_MATCH, VMOPT_XGCTHREADS, NULL)) {
 		result = option_set_to_opt_integer_args(vm, VMOPT_XGCTHREADS, &index, EXACT_MEMORY_MATCH, &extensions->gcThreadCount, args);
+		gcthread_index = index;
+		j9tty_printf(PORTLIB, "threads index is: %d\n", index);
 		if (OPTION_OK != result) {
 			if (OPTION_MALFORMED == result) {
 				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, VMOPT_XGCTHREADS);
@@ -1267,6 +1250,36 @@ gcParseReconfigurableArguments(J9JavaVM* vm, J9VMInitArgs* args)
 		}
 
 		extensions->gcThreadCountForced = true;
+	}
+
+	/* Handling VMOPT_XGCMAXTHREADS is equivalent to VMOPT_XGCTHREADS (above), except it sets gcThreadCountForced to false rather than true. */
+	if (-1 != FIND_ARG_IN_VMARGS(EXACT_MEMORY_MATCH, VMOPT_XGCMAXTHREADS, NULL)) {
+		result = option_set_to_opt_integer_args(vm, VMOPT_XGCMAXTHREADS, &index, EXACT_MEMORY_MATCH, &extensions->gcMaxThreadCount, args);
+		maxgcthread_index = index;
+		j9tty_printf(PORTLIB, "max index is: %d\n", index);
+		if (OPTION_OK != result) {
+			if (OPTION_MALFORMED == result) {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, VMOPT_XGCMAXTHREADS);
+			} else {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_OVERFLOWED, VMOPT_XGCMAXTHREADS);
+			}
+			goto _error;
+		}
+
+		if (0 == extensions->gcMaxThreadCount) {
+			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, VMOPT_XGCMAXTHREADS, (UDATA)0);
+			goto _error;
+		}
+		/* the -Xgcthreads happens last */
+		if (gcthread_index > maxgcthread_index) {
+			extensions->gcMaxThreadCount = 0;
+		}
+		/* the -Xmaxgcthreads happens last */
+		else {
+			extensions->gcThreadCount = extensions->gcMaxThreadCount;
+			extensions->gcThreadCountForced = false;
+		}
+		
 	}
 
 	return true;
