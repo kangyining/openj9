@@ -71,6 +71,9 @@ artifactory:
     default: 'ci-openj9'
   uploadDir:
     default: "${repo}/${JOB_NAME}/${BUILD_ID}"
+  buildNamePrefix:
+    osu: ''
+    unb: ''
   daysToKeepArtifacts:
     osu: 40
     unb: 30
@@ -129,7 +132,7 @@ jitserver:
 # OpenSSL
 #========================================#
 openssl:
-  extra_getsource_options: '--openssl-version=3.0.11'
+  extra_getsource_options: '--openssl-version=openssl-3.0.12+CVEs1 --openssl-repo=https://github.com/ibmruntimes/openssl.git'
   extra_configure_options: '--with-openssl=fetched'
 #========================================#
 # OpenSSL Bundling
@@ -202,8 +205,6 @@ ppc64le_linux:
   build_env:
     cmd:
       all: 'source /home/jenkins/set_gcc_11.2.0_env'
-      8: 'source /home/jenkins/set_gcc7.5.0_env'
-      11: 'source /home/jenkins/set_gcc7.5.0_env'
 #========================================#
 # Linux PPCLE 64bits /w JITSERVER
 #========================================#
@@ -226,8 +227,6 @@ s390x_linux:
   build_env:
     cmd:
       all: 'source /home/jenkins/set_gcc_11.2.0_env'
-      8: 'source /home/jenkins/set_gcc7.5.0_env'
-      11: 'source /home/jenkins/set_gcc7.5.0_env'
 #========================================#
 # Linux S390 64bits /w JITSERVER
 #========================================#
@@ -317,8 +316,6 @@ aarch64_linux:
   build_env:
     vars:
       all: 'CC=/usr/local/gcc10/bin/gcc-10.3 CXX=/usr/local/gcc10/bin/g++-10.3'
-      8: 'CC=/usr/local/gcc/bin/gcc-7.5 CXX=/usr/local/gcc/bin/g++-7.5'
-      11: 'CC=/usr/local/gcc/bin/gcc-7.5 CXX=/usr/local/gcc/bin/g++-7.5'
 #========================================#
 # Linux Aarch 64bits /w JITSERVER
 #========================================#
@@ -398,7 +395,7 @@ aarch64_mac:
     8: 'macosx-aarch64-normal-server-release'
     11: 'macosx-aarch64-normal-server-release'
   extra_configure_options:
-    all: '--disable-warnings-as-errors --with-noncompressedrefs'
+    all: '--with-noncompressedrefs'
   openjdk_reference_repo: '/Users/jenkins/openjdk_cache'
   node_labels:
     build: 'ci.role.build && hw.arch.aarch64 && sw.os.mac'

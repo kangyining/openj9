@@ -21,11 +21,15 @@
  *******************************************************************************/
 package org.openj9.criu;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import openj9.internal.criu.InternalCRIUSupport;
 
 public class TimeChangeTest {
 
@@ -46,13 +50,24 @@ public class TimeChangeTest {
 		} else {
 			String testName = args[0];
 			TimeChangeTest tct = new TimeChangeTest();
-			if ("testSystemNanoTime".equalsIgnoreCase(testName)) {
+			switch (testName) {
+			case "testGetLastRestoreTime":
+				tct.testGetLastRestoreTime();
+				break;
+			case "testMXBeanUpTime":
+				tct.testMXBeanUpTime();
+				break;
+			case "testSystemNanoTime":
 				tct.testSystemNanoTime();
-			} else if ("testSystemNanoTimeJitPreCheckpointCompile".equalsIgnoreCase(testName)) {
+				break;
+			case "testSystemNanoTimeJitPreCheckpointCompile":
 				tct.testSystemNanoTimeJitPreCheckpointCompile();
-			} else if ("testSystemNanoTimeJitPostCheckpointCompile".equalsIgnoreCase(testName)) {
+				break;
+			case "testSystemNanoTimeJitPostCheckpointCompile":
 				tct.testSystemNanoTimeJitPostCheckpointCompile();
-			} else {
+				break;
+			default:
+				// timer related tests
 				tct.test(testName);
 			}
 		}
@@ -97,6 +112,50 @@ public class TimeChangeTest {
 		} else {
 			System.out.println("FAILED: System.nanoTime() after CRIU restore: " + afterRestore
 					+ ", the elapse time is: " + elapsedTime + " ns, w/ MAX_TARDINESS_NS : " + MAX_TARDINESS_NS);
+		}
+	}
+
+	private void testGetLastRestoreTime() {
+		long lastRestoreTime = InternalCRIUSupport.getLastRestoreTime();
+		if (lastRestoreTime != -1) {
+			System.out.println("FAILED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
+					+ " should be -1 before restore");
+		}
+		long beforeCheckpoint = System.currentTimeMillis();
+		CRIUTestUtils.checkPointJVM(imagePath, false);
+		lastRestoreTime = InternalCRIUSupport.getLastRestoreTime();
+		long afterRestore = System.currentTimeMillis();
+		if (beforeCheckpoint >= lastRestoreTime) {
+			System.out.println("FAILED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
+					+ " can't be less than the beforeCheckpoint time - " + beforeCheckpoint);
+		} else if (lastRestoreTime > afterRestore) {
+			System.out.println("FAILED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
+					+ " can't be greater than the afterRestore time - " + afterRestore);
+		} else {
+			System.out.println("PASSED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
+					+ " is between beforeCheckpoint time - " + beforeCheckpoint + " and afterRestore time - "
+					+ afterRestore);
+		}
+	}
+
+	private void testMXBeanUpTime() {
+		RuntimeMXBean mxb = ManagementFactory.getRuntimeMXBean();
+		long uptimeBeforeCheckpoint = mxb.getUptime();
+		CRIUTestUtils.checkPointJVM(imagePath, false);
+		long uptimeAfterCheckpoint = mxb.getUptime();
+		// UpTime adjustment less than the JVM down time 2s.
+		long adjustMillis = 1500;
+
+		if (uptimeAfterCheckpoint <= uptimeBeforeCheckpoint) {
+			System.out.println("FAILED: testMXBeanUpTime() - uptimeAfterCheckpoint " + uptimeAfterCheckpoint
+					+ " can't be less than uptimeBeforeCheckpoint " + uptimeBeforeCheckpoint);
+		} else if (uptimeAfterCheckpoint >= (uptimeBeforeCheckpoint + adjustMillis)) {
+			System.out.println("FAILED: testMXBeanUpTime() - uptimeAfterCheckpoint " + uptimeAfterCheckpoint
+					+ " can't be greater than uptimeBeforeCheckpoint " + uptimeBeforeCheckpoint + " + " + adjustMillis);
+		} else {
+			System.out.println("PASSED: testMXBeanUpTime() - uptimeAfterCheckpoint " + uptimeAfterCheckpoint
+					+ " is less than uptimeBeforeCheckpoint " + uptimeBeforeCheckpoint + " + "
+					+ adjustMillis);
 		}
 	}
 

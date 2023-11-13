@@ -387,6 +387,7 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
       case TR::java_lang_StringUTF16_newBytesFor:
       case TR::java_util_HashMap_get:
       case TR::java_util_HashMap_getNode:
+      case TR::java_util_HashMap_getNode_Object:
       case TR::java_lang_String_getChars_charArray:
       case TR::java_lang_String_getChars_byteArray:
       case TR::java_lang_Integer_toUnsignedLong:
@@ -5049,6 +5050,21 @@ TR_InlinerFailureReason
          return JNI_Callee;
          }
       }
+
+#if JAVA_SPEC_VERSION >= 21
+   // A method that is annotated with @ChangesCurrentThread is not inlinable
+   // unless the caller is also annotated with @ChangesCurrentThread
+   if (comp->fej9()->isChangesCurrentThread(resolvedMethod)
+    && !comp->fej9()->isChangesCurrentThread(callsite->_callerResolvedMethod))
+      {
+      if (comp->trace(OMR::inlining))
+         traceMsg(
+            comp,
+            "Preventing inlining of %s as it is a JCL method annotated with @ChangesCurrentThread without its caller sharing the same annotation.\n",
+            resolvedMethod->signature(comp->trMemory()));
+      return DontInline_Callee;
+      }
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
    TR::RecognizedMethod rm = resolvedMethod->getRecognizedMethod();
 

@@ -341,12 +341,12 @@ J9::Compilation::printCompYieldStats()
 const char *
 J9::Compilation::getContextName(TR_CallingContext context)
    {
-   if (context == OMR::endOpts || context == TR_CallingContext::NO_CONTEXT)
+   if (context == (TR_CallingContext)OMR::endOpts || context == TR_CallingContext::NO_CONTEXT)
       return "NO CONTEXT";
-   else if (context < OMR::numOpts)
+   else if (context < (TR_CallingContext)OMR::numOpts)
       return TR::Optimizer::getOptimizationName((OMR::Optimizations)context);
    else
-      return callingContextNames[context-OMR::numOpts];
+      return callingContextNames[context - (TR_CallingContext)OMR::numOpts];
    }
 
 void
@@ -857,8 +857,9 @@ bool
 J9::Compilation::compilePortableCode()
    {
    return (self()->fej9()->inSnapshotMode() ||
-             (self()->compileRelocatableCode() &&
-                self()->fej9()->isPortableSCCEnabled()));
+             self()->fej9()->isPortableRestoreModeEnabled() ||
+                (self()->compileRelocatableCode() &&
+                   self()->fej9()->isPortableSCCEnabled()));
    }
 
 

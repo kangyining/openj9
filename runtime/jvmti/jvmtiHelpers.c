@@ -143,10 +143,13 @@ getVMThread(J9VMThread *currentThread, jthread thread, J9VMThread **vmThreadPtr,
 #if JAVA_SPEC_VERSION >= 19
 	isVirtualThread = IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObject);
 	if (isVirtualThread) {
+		jint vthreadState = 0;
+		j9object_t carrierThread = NULL;
 		vm->internalVMFunctions->acquireVThreadInspector(currentThread, thread, TRUE);
-
-		jint vthreadState = J9VMJAVALANGVIRTUALTHREAD_STATE(currentThread, threadObject);
-		j9object_t carrierThread = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CARRIERTHREAD(currentThread, threadObject);
+		/* Re-fetch threadObject since acquireVThreadInspector can release and reacquire VM access. */
+		threadObject = J9_JNI_UNWRAP_REFERENCE(thread);
+		vthreadState = J9VMJAVALANGVIRTUALTHREAD_STATE(currentThread, threadObject);
+		carrierThread = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CARRIERTHREAD(currentThread, threadObject);
 		if (NULL != carrierThread) {
 			targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, carrierThread);
 		}
@@ -827,7 +830,7 @@ getVirtualThreadState(J9VMThread *currentThread, jthread thread)
 			/* The mapping from JVMTI_VTHREAD_STATE_XXX to JVMTI_JAVA_LANG_THREAD_STATE_XXX is based
 			 * on j.l.VirtualThread.threadState().
 			 */
-			switch (vThreadState) {
+			switch (vThreadState & ~JVMTI_VTHREAD_STATE_SUSPENDED) {
 			case JVMTI_VTHREAD_STATE_NEW:
 				rc = JVMTI_JAVA_LANG_THREAD_STATE_NEW;
 				break;
@@ -855,27 +858,23 @@ getVirtualThreadState(J9VMThread *currentThread, jthread thread)
 				break;
 			}
 			case JVMTI_VTHREAD_STATE_RUNNABLE:
-				rc = JVMTI_JAVA_LANG_THREAD_STATE_RUNNABLE;
-				break;
-			case JVMTI_VTHREAD_STATE_RUNNABLE_SUSPENDED:
-				rc = JVMTI_JAVA_LANG_THREAD_STATE_RUNNABLE | JVMTI_THREAD_STATE_SUSPENDED;
-				break;
 			case JVMTI_VTHREAD_STATE_RUNNING:
-				rc = JVMTI_JAVA_LANG_THREAD_STATE_RUNNABLE;
-				break;
 			case JVMTI_VTHREAD_STATE_PARKING:
-				/* Fall Through */
+			case JVMTI_VTHREAD_STATE_TIMED_PARKING:
 			case JVMTI_VTHREAD_STATE_YIELDING:
 				rc = JVMTI_JAVA_LANG_THREAD_STATE_RUNNABLE;
 				break;
 			case JVMTI_VTHREAD_STATE_PARKED:
 				rc = JVMTI_JAVA_LANG_THREAD_STATE_WAITING | JVMTI_THREAD_STATE_PARKED;
 				break;
-			case JVMTI_VTHREAD_STATE_PARKED_SUSPENDED:
-				rc = JVMTI_JAVA_LANG_THREAD_STATE_WAITING | JVMTI_THREAD_STATE_PARKED | JVMTI_THREAD_STATE_SUSPENDED;
+			case JVMTI_VTHREAD_STATE_TIMED_PARKED:
+				rc = JVMTI_JAVA_LANG_THREAD_STATE_TIMED_WAITING | JVMTI_THREAD_STATE_PARKED;
 				break;
 			case JVMTI_VTHREAD_STATE_PINNED:
 				rc = JVMTI_JAVA_LANG_THREAD_STATE_WAITING;
+				break;
+			case JVMTI_VTHREAD_STATE_TIMED_PINNED:
+				rc = JVMTI_JAVA_LANG_THREAD_STATE_TIMED_WAITING;
 				break;
 			case JVMTI_VTHREAD_STATE_TERMINATED:
 				rc = JVMTI_JAVA_LANG_THREAD_STATE_TERMINATED;
@@ -1659,7 +1658,7 @@ setEventNotificationMode(J9JVMTIEnv * j9env, J9VMThread * currentThread, jint mo
 	if (event_thread == NULL) {
 		eventMap = &(j9env->globalEventEnable);
 	} else {
-		j9object_t threadObject = J9_JNI_UNWRAP_REFERENCE(event_thread);
+		j9object_t threadObject = NULL;
 		J9VMThread *vmThreadForTLS = NULL;
 		rc = getVMThread(
 				currentThread, event_thread, &targetThread, JVMTI_ERROR_NONE,
@@ -1668,6 +1667,10 @@ setEventNotificationMode(J9JVMTIEnv * j9env, J9VMThread * currentThread, jint mo
 			goto done;
 		}
 		vmThreadForTLS = targetThread;
+		/* Fetch threadObject after getVMThread because getVMThread can release and
+		 * reacquire VM access.
+		 */
+		threadObject = J9_JNI_UNWRAP_REFERENCE(event_thread);
 #if JAVA_SPEC_VERSION >= 19
 		rc = allocateTLS(vm, threadObject);
 		if (JVMTI_ERROR_NONE != rc) {
@@ -2035,7 +2038,7 @@ genericWalkStackFramesHelper(J9VMThread *currentThread, J9VMThread *targetThread
 		} else {
 			j9object_t contObject = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObject);
 			J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(currentThread, contObject);
-			vm->internalVMFunctions->walkContinuationStackFrames(currentThread, continuation, walkState);
+			vm->internalVMFunctions->walkContinuationStackFrames(currentThread, continuation, threadObject, walkState);
 		}
 	} else
 #endif /* JAVA_SPEC_VERSION >= 19 */
@@ -2043,7 +2046,7 @@ genericWalkStackFramesHelper(J9VMThread *currentThread, J9VMThread *targetThread
 #if JAVA_SPEC_VERSION >= 19
 		J9VMContinuation *currentContinuation = targetThread->currentContinuation;
 		if (NULL != currentContinuation) {
-			rc = vm->internalVMFunctions->walkContinuationStackFrames(currentThread, currentContinuation, walkState);
+			rc = vm->internalVMFunctions->walkContinuationStackFrames(currentThread, currentContinuation, threadObject, walkState);
 		} else
 #endif /* JAVA_SPEC_VERSION >= 19 */
 		{

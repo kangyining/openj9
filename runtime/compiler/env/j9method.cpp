@@ -2141,6 +2141,7 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::java_util_HashMap_findNullKeyEntry,      "findNullKeyEntry",           "()Ljava/util/HashMap$Entry;")},
       {x(TR::java_util_HashMap_get,                   "get",           "(Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::java_util_HashMap_getNode,               "getNode",       "(ILjava/lang/Object;)Ljava/util/HashMap$Node;")},
+      {x(TR::java_util_HashMap_getNode_Object,        "getNode",       "(Ljava/lang/Object;)Ljava/util/HashMap$Node;")},
       {x(TR::java_util_HashMap_putImpl,               "putImpl",       "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::java_util_HashMap_findNonNullKeyEntry,   "findNonNullKeyEntry",         "(Ljava/lang/Object;II)Ljava/util/HashMap$Entry;")},
       {x(TR::java_util_HashMap_resize,                "resize",         "()[Ljava/util/HashMap$Node;")},
@@ -2887,6 +2888,7 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::sun_misc_Unsafe_putFloatVolatile_jlObjectJF_V,         "putFloatRelease",   "(Ljava/lang/Object;JF)V")},
       {x(TR::sun_misc_Unsafe_putDoubleVolatile_jlObjectJD_V,        "putDoubleRelease",  "(Ljava/lang/Object;JD)V")},
       {x(TR::sun_misc_Unsafe_putObjectVolatile_jlObjectJjlObject_V, "putObjectRelease",  "(Ljava/lang/Object;JLjava/lang/Object;)V")},
+      {x(TR::sun_misc_Unsafe_putObjectVolatile_jlObjectJjlObject_V, "putReferenceRelease",  "(Ljava/lang/Object;JLjava/lang/Object;)V")},
 
       {x(TR::sun_misc_Unsafe_putInt_jlObjectII_V,           "putInt",     "(Ljava/lang/Object;II)V")},
 
@@ -2921,6 +2923,7 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::sun_misc_Unsafe_getFloatVolatile_jlObjectJ_F,          "getFloatAcquire",   "(Ljava/lang/Object;J)F")},
       {x(TR::sun_misc_Unsafe_getDoubleVolatile_jlObjectJ_D,         "getDoubleAcquire",  "(Ljava/lang/Object;J)D")},
       {x(TR::sun_misc_Unsafe_getObjectVolatile_jlObjectJ_jlObject,  "getObjectAcquire",  "(Ljava/lang/Object;J)Ljava/lang/Object;")},
+      {x(TR::sun_misc_Unsafe_getObjectVolatile_jlObjectJ_jlObject,  "getReferenceAcquire",  "(Ljava/lang/Object;J)Ljava/lang/Object;")},
 
       {x(TR::sun_misc_Unsafe_putByte_JB_V,                  "putByte",    "(JB)V")},
       {x(TR::sun_misc_Unsafe_putShort_JS_V,                 "putShort",   "(JS)V")},
@@ -3970,6 +3973,12 @@ void TR_ResolvedJ9Method::construct()
       {  TR::unknownMethod},
       };
 
+   static X ArraysSupportMethods [] =
+      {
+      {x(TR::jdk_internal_util_ArraysSupport_vectorizedMismatch, "vectorizedMismatch", "(Ljava/lang/Object;JLjava/lang/Object;JII)I")},
+      {  TR::unknownMethod}
+      };
+
    struct Y { const char * _class; X * _methods; };
 
    /* classXX where XX is the number of characters in the class name */
@@ -4151,7 +4160,7 @@ void TR_ResolvedJ9Method::construct()
       { "com/ibm/jit/DecimalFormatHelper", DecimalFormatHelperMethods},
       { "jdk/internal/reflect/Reflection", ReflectionMethods },
       { "jdk/internal/util/Preconditions", PreconditionsMethods },
-
+      { "jdk/internal/util/ArraysSupport", ArraysSupportMethods },
       { 0 }
       };
    static Y class32[] =

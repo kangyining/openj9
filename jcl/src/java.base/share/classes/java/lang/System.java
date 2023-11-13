@@ -1074,14 +1074,17 @@ public static void load(String pathName) {
 		smngr.checkLink(pathName);
 	}
 /*[IF JAVA_SPEC_VERSION >= 15]*/
+	/*[IF PLATFORM-mz31 | PLATFORM-mz64]*/
+	ClassLoader.loadZOSLibrary(getCallerClass(), pathName);
+	/*[ELSE] PLATFORM-mz31 | PLATFORM-mz64 */
 	File fileName = new File(pathName);
-	if (fileName.isAbsolute()) {
-		ClassLoader.loadLibrary(getCallerClass(), fileName);
-	} else {
+	if (!fileName.isAbsolute()) {
 		/*[MSG "K0648", "Not an absolute path: {0}"]*/
 		throw new UnsatisfiedLinkError(Msg.getString("K0648", pathName));//$NON-NLS-1$
 	}
-/*[ELSE]
+	ClassLoader.loadLibrary(getCallerClass(), fileName);
+	/*[ENDIF] PLATFORM-mz31 | PLATFORM-mz64 */
+/*[ELSE] JAVA_SPEC_VERSION >= 15 */
 	ClassLoader.loadLibraryWithPath(pathName, ClassLoader.callerClassLoader(), null);
 /*[ENDIF] JAVA_SPEC_VERSION >= 15 */
 }
@@ -1185,18 +1188,21 @@ static void checkTmpDir() {
 
 static void initSecurityManager(ClassLoader applicationClassLoader) {
 	String javaSecurityManager = internalGetProperties().getProperty("java.security.manager"); //$NON-NLS-1$
-	/*[IF JAVA_SPEC_VERSION > 11]*/
-	if ("allow".equals(javaSecurityManager)) {
-		/* Do nothing. */
-	} else if ("disallow".equals(javaSecurityManager) //$NON-NLS-1$
+	if (null == javaSecurityManager) {
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-		|| (null == javaSecurityManager)
-		/*[ENDIF] JAVA_SPEC_VERSION >= 18 */
-	) {
 		throwUOEFromSetSM = true;
-	} else
-	/*[ENDIF] JAVA_SPEC_VERSION > 11 */
-	if (null != javaSecurityManager) {
+		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
+		/* Do nothing. */
+		/*[ENDIF] JAVA_SPEC_VERSION >= 18 */
+	} else if ("allow".equals(javaSecurityManager)) { //$NON-NLS-1$
+		/* Do nothing. */
+	} else if ("disallow".equals(javaSecurityManager)) { //$NON-NLS-1$
+		/*[IF JAVA_SPEC_VERSION > 11]*/
+		throwUOEFromSetSM = true;
+		/*[ELSE] JAVA_SPEC_VERSION > 11 */
+		/* Do nothing. */
+		/*[ENDIF] JAVA_SPEC_VERSION > 11 */
+	} else {
 		/*[IF JAVA_SPEC_VERSION >= 17]*/
 		initialErr.println("WARNING: A command line option has enabled the Security Manager"); //$NON-NLS-1$
 		initialErr.println("WARNING: The Security Manager is deprecated and will be removed in a future release"); //$NON-NLS-1$
@@ -1790,13 +1796,22 @@ public abstract static class LoggerFinder {
 	 */
 	public static LoggerFinder getLoggerFinder() {
 		verifyPermissions();
-		if (loggerFinder == null) {
-			loggerFinder = AccessController.doPrivileged(
+		LoggerFinder localFinder = loggerFinder;
+		if (localFinder == null) {
+			localFinder = AccessController.doPrivileged(
 								(PrivilegedAction<LoggerFinder>) () -> jdk.internal.logger.LoggerFinderLoader.getLoggerFinder(),
 								AccessController.getContext(),
 								com.ibm.oti.util.RuntimePermissions.permissionLoggerFinder);
+			/*[IF JAVA_SPEC_VERSION >= 17]*/
+			/*[IF JAVA_SPEC_VERSION != 21] Temporary until jdk21 picks up the OpenJDK change */
+			if (localFinder instanceof jdk.internal.logger.LoggerFinderLoader.TemporaryLoggerFinder) {
+				return localFinder;
+			}
+			/*[ENDIF] JAVA_SPEC_VERSION != 21 */
+			/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+			loggerFinder = localFinder;
 		}
-		return loggerFinder;
+		return localFinder;
 	}
 
 	private static void verifyPermissions() {

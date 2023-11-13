@@ -392,6 +392,10 @@ typedef struct J9ROMClassCfrMember {
 	U_16 attributesCount;
 } J9ROMClassCfrMember;
 
+/* @ddr_namespace: map_to_type=J9Compatibility */
+
+#define J9COMPATIBILITY_ELASTICSEARCH 0x1 /* -XX:Compatibility=elasticsearch */
+
 /* @ddr_namespace: map_to_type=J9ContendedLoadTableEntry */
 
 typedef struct J9ContendedLoadTableEntry {
@@ -1594,7 +1598,7 @@ typedef struct J9ROMFieldOffsetWalkResult {
 	UDATA superTotalInstanceSize;
 	UDATA index;
 	IDATA backfillOffset;
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	struct J9Class* flattenedClass;
 #endif /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 } J9ROMFieldOffsetWalkResult;
@@ -1632,7 +1636,7 @@ typedef struct J9ROMFieldOffsetWalkState {
 	struct J9HiddenInstanceField* hiddenInstanceFields[J9VM_MAX_HIDDEN_FIELDS_PER_CLASS];
 	UDATA hiddenInstanceFieldCount;
 	UDATA hiddenInstanceFieldWalkIndex;
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	struct J9FlattenedClassCache *flattenedClassCache;
 	UDATA firstFlatSingleOffset;
 	UDATA firstFlatObjectOffset;
@@ -2285,8 +2289,9 @@ typedef struct J9ROMMethodHandleRef {
 #define MN_IS_TYPE			0x00080000
 #define MN_CALLER_SENSITIVE	0x00100000
 #define MN_TRUSTED_FINAL	0x00200000
+#define MN_HIDDEN_MEMBER	0x00400000
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
-#define MN_FLATTENED		0x00400000
+#define MN_FLATTENED		0x00800000
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 #define MN_REFERENCE_KIND_SHIFT	24
@@ -4199,6 +4204,7 @@ typedef struct J9DelayedLockingOpertionsRecord {
 #define J9VM_CRIU_IS_NON_PORTABLE_RESTORE_MODE 0x4
 #define J9VM_CRIU_IS_JDWP_ENABLED 0x8
 #define J9VM_CRIU_IS_THROW_ON_DELAYED_CHECKPOINT_ENABLED 0x10
+#define J9VM_CRIU_IS_PORTABLE_JVM_RESTORE_MODE 0x20
 
 typedef struct J9CRIUCheckpointState {
 	U_32 flags;
@@ -4215,6 +4221,7 @@ typedef struct J9CRIUCheckpointState {
 	 * Only supports one Checkpoint, could be restored multiple times.
 	 */
 	I_64 checkpointRestoreTimeDelta;
+	I_64 lastRestoreTimeMillis;
 	UDATA maxRetryForNotCheckpointSafe;
 	jclass criuJVMCheckpointExceptionClass;
 	jclass criuSystemCheckpointExceptionClass;
@@ -4833,7 +4840,7 @@ typedef struct J9InternalVMFunctions {
 	UDATA  ( *structuredSignalHandlerVM)(struct J9PortLibrary* portLibrary, U_32 gpType, void* gpInfo, void* userData) ;
 	UDATA  ( *addHiddenInstanceField)(struct J9JavaVM *vm, const char *className, const char *fieldName, const char *fieldSignature, UDATA *offsetReturn) ;
 	void  ( *reportHotField)(struct J9JavaVM *javaVM, int32_t reducedCpuUtil, J9Class* clazz, uint8_t fieldOffset,  uint32_t reducedFrequency) ;
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	struct J9ROMFieldOffsetWalkResult*  ( *fieldOffsetsStartDo)(struct J9JavaVM *vm, struct J9ROMClass *romClass, struct J9Class *superClazz, struct J9ROMFieldOffsetWalkState *state, U_32 flags, J9FlattenedClassCache *flattenedClassCache) ;
 #else /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 	struct J9ROMFieldOffsetWalkResult*  ( *fieldOffsetsStartDo)(struct J9JavaVM *vm, struct J9ROMClass *romClass, struct J9Class *superClazz, struct J9ROMFieldOffsetWalkState *state, U_32 flags) ;
@@ -5020,6 +5027,7 @@ typedef struct J9InternalVMFunctions {
 	BOOLEAN (*isCRIUSupportEnabled_VM)(struct J9JavaVM *vm);
 	BOOLEAN (*isCheckpointAllowed)(struct J9VMThread *currentThread);
 	BOOLEAN (*isNonPortableRestoreMode)(struct J9VMThread *currentThread);
+	BOOLEAN (*isJVMInPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*runInternalJVMCheckpointHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runInternalJVMRestoreHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runDelayedLockRelatedOperations)(struct J9VMThread *currentThread);
@@ -5047,7 +5055,7 @@ typedef struct J9InternalVMFunctions {
 	void (*freeContinuation)(struct J9VMThread *currentThread, j9object_t continuationObject, BOOLEAN skipLocalCache);
 	void (*recycleContinuation)(struct J9JavaVM *vm, struct J9VMThread *vmThread, struct J9VMContinuation *continuation, BOOLEAN skipLocalCache);
 	void (*freeTLS)(struct J9VMThread *currentThread, j9object_t threadObj);
-	UDATA (*walkContinuationStackFrames)(struct J9VMThread *currentThread, struct J9VMContinuation *continuation, J9StackWalkState *walkState);
+	UDATA (*walkContinuationStackFrames)(struct J9VMThread *currentThread, struct J9VMContinuation *continuation, j9object_t threadObject, J9StackWalkState *walkState);
 	UDATA (*walkAllStackFrames)(struct J9VMThread *currentThread, J9StackWalkState *walkState);
 	BOOLEAN (*acquireVThreadInspector)(struct J9VMThread *currentThread, jobject thread, BOOLEAN spin);
 	void (*releaseVThreadInspector)(struct J9VMThread *currentThread, jobject thread);
@@ -5773,6 +5781,16 @@ typedef struct J9JavaVM {
 #else
 	omrthread_monitor_t classUnloadMutex;
 #endif
+	/* When GC runs as part of class redefinition, it could unload classes and
+	 * therefore try to acquire the class unload mutex, which is already held
+	 * to prevent JIT compilation from running concurrently with redefinition.
+	 * Such an acquisition attempt could deadlock if it occurs on a different
+	 * thread, even though the acquisition would be morally recursive.
+	 *
+	 * isClassUnloadMutexHeldForRedefinition allows GC to detect this situation
+	 * and skip acquiring the mutex.
+	 */
+	BOOLEAN isClassUnloadMutexHeldForRedefinition;
 	UDATA java2J9ThreadPriorityMap[11];
 	UDATA j9Thread2JavaPriorityMap[12];
 	UDATA priorityAsyncEventDispatch;
@@ -5901,7 +5919,7 @@ typedef struct J9JavaVM {
 #endif /* WIN32 */
 #endif /* J9VM_INTERP_ATOMIC_FREE_JNI_USES_FLUSH */
 	omrthread_monitor_t constantDynamicMutex;
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	UDATA valueFlatteningThreshold;
 	omrthread_monitor_t valueTypeVerificationMutex;
 	struct J9Pool* valueTypeVerificationStackPool;
@@ -5967,6 +5985,7 @@ typedef struct J9JavaVM {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	omrthread_monitor_t delayedLockingOperationsMutex;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+	U_32 compatibilityFlags;
 } J9JavaVM;
 
 #define J9VM_PHASE_STARTUP  1
@@ -6291,6 +6310,7 @@ typedef struct J9CInterpreterStackFrame {
 	U_8 jitFPRs[16 * 8]; /* fpr0-15 */
 #endif /* J9VM_ENV_DATA64 */
 #elif defined(J9VM_ARCH_AARCH64) /* J9VM_ARCH_ARM */
+	UDATA outgoingArguments[J9_INLINE_JNI_MAX_ARG_COUNT];
 	UDATA preservedGPRs[12]; /* x19-x30 */
 	U_8 preservedFPRs[8 * 8]; /* v8-15 */
 	J9JITGPRSpillArea jitGPRs;

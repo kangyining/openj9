@@ -40,12 +40,6 @@ extern "C" {
 
 #if JAVA_SPEC_VERSION >= 19
 extern J9JavaVM *BFUjavaVM;
-
-/* These come from jvm.c */
-extern IDATA (*f_monitorEnter)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorExit)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorWait)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorNotifyAll)(omrthread_monitor_t monitor);
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
 /* Define for debug
@@ -280,10 +274,10 @@ enterVThreadTransitionCritical(J9VMThread *currentThread, jobject thread)
 
 	while(!objectAccessBarrier.inlineMixedObjectCompareAndSwapU64(currentThread, threadObj, vm->virtualThreadInspectorCountOffset, 0, (U_64)-1)) {
 		/* Thread is being inspected or unmounted, wait. */
-		vmFuncs->internalExitVMToJNI(currentThread);
+		vmFuncs->internalReleaseVMAccess(currentThread);
 		VM_AtomicSupport::yieldCPU();
 		/* After wait, the thread may suspend here. */
-		vmFuncs->internalEnterVMFromJNI(currentThread);
+		vmFuncs->internalAcquireVMAccess(currentThread);
 		threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 	}
 }
@@ -296,14 +290,15 @@ exitVThreadTransitionCritical(J9VMThread *currentThread, j9object_t vthread)
 }
 
 static void
-unsetParentVthread(J9VMThread *currentThread, jobject thread)
+setContinuationStateToLastUnmount(J9VMThread *currentThread, jobject thread)
 {
 	enterVThreadTransitionCritical(currentThread, thread);
 	/* Re-fetch reference as enterVThreadTransitionCritical may release VMAccess. */
 	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 	j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
-	/* Add reverse link from Continuation object to VirtualThread object, this let JVMTI code. */
-	J9VMJDKINTERNALVMCONTINUATION_SET_VTHREAD(currentThread, continuationObj, NULL);
+	ContinuationState volatile *continuationStatePtr = VM_ContinuationHelpers::getContinuationStateAddress(currentThread, continuationObj);
+	/* Used in JVMTI to not suspend the virtual thread once it enters the last unmount phase. */
+	VM_ContinuationHelpers::setLastUnmount(continuationStatePtr);
 	exitVThreadTransitionCritical(currentThread, threadObj);
 }
 
@@ -501,7 +496,7 @@ JVM_VirtualThreadUnmountBegin(JNIEnv *env, jobject thread, jboolean lastUnmount)
 
 	if (lastUnmount) {
 		TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_END(vm->hookInterface, currentThread);
-		unsetParentVthread((J9VMThread *)env, thread);
+		setContinuationStateToLastUnmount((J9VMThread *)env, thread);
 	}
 	virtualThreadUnmountBegin(env, thread);
 
@@ -556,7 +551,6 @@ JVM_VirtualThreadHideFrames(JNIEnv *env, jobject vthread, jboolean hide)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
 
-	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, currentThread->threadObject));
 	if (hide) {
 		Assert_SC_true(J9_ARE_NO_BITS_SET(currentThread->privateFlags, J9_PRIVATE_FLAGS_VIRTUAL_THREAD_HIDDEN_FRAMES));
 	} else {
@@ -661,7 +655,7 @@ JVM_VirtualThreadEnd(JNIEnv *env, jobject vthread)
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
 	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_END(vm->hookInterface, currentThread);
-	unsetParentVthread((J9VMThread *)env, vthread);
+	setContinuationStateToLastUnmount((J9VMThread *)env, vthread);
 	virtualThreadUnmountBegin(env, vthread);
 
 	vmFuncs->internalExitVMToJNI(currentThread);

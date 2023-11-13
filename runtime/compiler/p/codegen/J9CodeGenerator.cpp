@@ -77,6 +77,12 @@ J9::Power::CodeGenerator::initialize()
       cg->setSupportsInlineConcurrentLinkedQueue();
       }
 
+   static bool disableInlineVectorizedMismatch = feGetEnv("TR_disableInlineVectorizedMismatch") != NULL;
+   if (cg->getSupportsArrayCmpLen() && !disableInlineVectorizedMismatch)
+      {
+      cg->setSupportsInlineVectorizedMismatch();
+      }
+
    cg->setSupportsNewInstanceImplOpt();
 
    static char *disableMonitorCacheLookup = feGetEnv("TR_disableMonitorCacheLookup");
@@ -570,7 +576,7 @@ J9::Power::CodeGenerator::insertPrefetchIfNecessary(TR::Node *node, TR::Register
                      generateTrg1MemInstruction(self(), TR::InstOpCode::lwz, node, temp3Reg, TR::MemoryReference::createWithDisplacement(self(), pointerReg, (int32_t)(TR::Compiler->om.sizeofReferenceField()*2), 4));
                   }
 
-               if (comp->getOptions()->getHeapBase() != NULL)
+               if (comp->getOptions()->getHeapBase() != 0)
                   {
                   loadAddressConstant(self(), comp->compileRelocatableCode(), node, (intptr_t)(comp->getOptions()->getHeapBase()), tempReg);
                   generateTrg1Src2Instruction(self(), TR::InstOpCode::cmpl4, node, condReg, temp3Reg, tempReg);

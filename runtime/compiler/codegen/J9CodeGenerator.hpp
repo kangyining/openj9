@@ -492,6 +492,16 @@ public:
 	*/
    void setSupportsInlineEncodeASCII() { _j9Flags.set(SupportsInlineEncodeASCII); }
 
+   /** \brief
+   *   Determines whether the code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedMismatch
+   */
+   bool getSupportsInlineVectorizedMismatch() { return _j9Flags.testAny(SupportsInlineVectorizedMismatch); }
+
+   /** \brief
+   *   The code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedMismatch
+   */
+   void setSupportsInlineVectorizedMismatch() { _j9Flags.set(SupportsInlineVectorizedMismatch); }
+
    /**
     * \brief
     *    The number of nodes between a monext and the next monent before
@@ -633,6 +643,12 @@ public:
    */
    void setSavesNonVolatileGPRsForGC() {_j9Flags.set(SavesNonVolatileGPRsForGC); }
 
+   /// Determine whether \c jitDispatchJ9Method is (supported and) enabled.
+   bool enableJitDispatchJ9Method();
+
+   /// Determine whether to stress the J2I path for \c jitDispatchJ9Method.
+   bool stressJitDispatchJ9MethodJ2I();
+
 private:
 
    enum // Flags
@@ -649,6 +665,7 @@ private:
       SupportsIntegerToChars                              = 0x00000200,
       SupportsInlineEncodeASCII                           = 0x00000400,
       SavesNonVolatileGPRsForGC                           = 0x00000800,
+      SupportsInlineVectorizedMismatch                    = 0x00001000,
       };
 
    flags32_t _j9Flags;

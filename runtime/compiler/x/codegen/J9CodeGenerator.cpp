@@ -135,6 +135,12 @@ J9::X86::CodeGenerator::initialize()
       cg->setSupportsBDLLHardwareOverflowCheck();
       }
 
+   static bool disableInlineVectorizedMismatch = feGetEnv("TR_disableInlineVectorizedMismatch") != NULL;
+   if (cg->getSupportsArrayCmpLen() && !disableInlineVectorizedMismatch)
+      {
+      cg->setSupportsInlineVectorizedMismatch();
+      }
+
    // Disable fast gencon barriers for AOT compiles because relocations on
    // the inlined heap addresses are not available (yet).
    //
@@ -497,4 +503,16 @@ J9::X86::CodeGenerator::reserveNTrampolines(int32_t numTrampolines)
       }
 
    TR_ASSERT(newCache->isReserved(), "New CodeCache is not reserved");
+   }
+
+bool
+J9::X86::CodeGenerator::supportsNonHelper(TR::SymbolReferenceTable::CommonNonhelperSymbol symbol)
+   {
+   if (symbol == TR::SymbolReferenceTable::jitDispatchJ9MethodSymbol
+       && self()->comp()->target().is64Bit())
+      {
+      return true;
+      }
+
+   return J9::CodeGenerator::supportsNonHelper(symbol);
    }

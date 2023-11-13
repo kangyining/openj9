@@ -277,6 +277,8 @@ extern J9_CFUNC jlong JNICALL
 Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_getTotalStartedThreadCountImpl (JNIEnv *env, jobject beanInstance);
 extern J9_CFUNC jboolean JNICALL
 Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_isThreadContentionMonitoringSupportedImpl (JNIEnv *env, jobject beanInstance);
+extern J9_CFUNC jlong JNICALL
+Java_com_ibm_lang_management_internal_ExtendedThreadMXBeanImpl_getThreadAllocatedBytesImpl (JNIEnv *env, jobject unused, jlong threadID);
 
 extern J9_CFUNC jobject JNICALL
 Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_getThreadInfoImpl(JNIEnv *env, jobject beanInstance,
@@ -1292,6 +1294,9 @@ Java_jdk_internal_misc_ScopedMemoryAccess_closeScope0(JNIEnv *env, jobject insta
 /* criu.cpp */
 jlong JNICALL
 Java_openj9_internal_criu_InternalCRIUSupport_getCheckpointRestoreNanoTimeDeltaImpl(JNIEnv *env, jclass unused);
+
+jlong JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_getLastRestoreTimeImpl(JNIEnv *env, jclass unused);
 
 jboolean JNICALL
 Java_openj9_internal_criu_InternalCRIUSupport_isCheckpointAllowedImpl(JNIEnv *env, jclass unused);

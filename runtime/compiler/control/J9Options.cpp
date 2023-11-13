@@ -171,6 +171,9 @@ int32_t J9::Options::_iProfilerMemoryConsumptionLimit=32*1024*1024;
 #else
 int32_t J9::Options::_iProfilerMemoryConsumptionLimit=18*1024*1024;
 #endif
+int32_t J9::Options::_iProfilerBcHashTableSize = 34501; // prime number; Note: 131049 * 8 fits in 1 segment of persistent memory
+int32_t J9::Options::_iProfilerMethodHashTableSize = 12007; // 32707 could be another good value for larger apps
+
 int32_t J9::Options::_IprofilerOffSubtractionFactor = 500;
 int32_t J9::Options::_IprofilerOffDivisionFactor = 16;
 
@@ -372,7 +375,9 @@ char * J9::Options::_externalOptionStrings[J9::ExternalOptions::TR_NumExternalOp
    "-XX:codecachetotalMaxRAMPercentage=", // = 67
    "-XX:+JITServerAOTCacheDelayMethodRelocation", // = 68
    "-XX:-JITServerAOTCacheDelayMethodRelocation", // = 69
-   // TR_NumExternalOptions                  = 70
+   "-XX:+IProfileDuringStartupPhase",     // = 70
+   "-XX:-IProfileDuringStartupPhase",     // = 71
+   // TR_NumExternalOptions                  = 72
    };
 
 //************************************************************************
@@ -1005,6 +1010,8 @@ TR::OptionTable OMR::Options::_feOptions[] = {
         TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_interpreterSamplingThresholdInStartupMode, 0, "F%d", NOT_IN_SUBSET},
    {"invocationThresholdToTriggerLowPriComp=",    "M<nnn>\tNumber of times a loopy method must be invoked to be eligible for LPQ",
        TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_invocationThresholdToTriggerLowPriComp, 0, "F%d", NOT_IN_SUBSET },
+   {"iprofilerBcHashTableSize=",      "M<nnn>\tSize of the backbone for the IProfiler bytecode hash table",
+        TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_iProfilerBcHashTableSize, 0, "F%d", NOT_IN_SUBSET},
    {"iprofilerBufferInterarrivalTimeToExitDeepIdle=", "M<nnn>\tIn ms. If 4 IP buffers arrive back-to-back more frequently than this value, JIT exits DEEP_IDLE",
         TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_iProfilerBufferInterarrivalTimeToExitDeepIdle, 0, "F%d", NOT_IN_SUBSET },
    {"iprofilerBufferMaxPercentageToDiscard=", "O<nnn>\tpercentage of interpreter profiling buffers "
@@ -1024,6 +1031,8 @@ TR::OptionTable OMR::Options::_feOptions[] = {
         TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_maxIprofilingCountInStartupMode, 0, "F%d", NOT_IN_SUBSET},
    {"iprofilerMemoryConsumptionLimit=",    "O<nnn>\tlimit on memory consumption for interpreter profiling data",
         TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_iProfilerMemoryConsumptionLimit, 0, "P%d", NOT_IN_SUBSET},
+   {"iprofilerMethodHashTableSize=",      "M<nnn>\tSize of the backbone for the IProfiler method (fanin) hash table",
+        TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_iProfilerMethodHashTableSize, 0, "F%d", NOT_IN_SUBSET},
    {"iprofilerNumOutstandingBuffers=", "O<nnn>\tnumber of outstanding interpreter profiling buffers "
                                        "allowed in the system. Specify 0 to disable this optimization",
         TR::Options::setStaticNumeric, (intptr_t)&TR::Options::_iprofilerNumOutstandingBuffers, 0, "F%d", NOT_IN_SUBSET},
@@ -1489,7 +1498,7 @@ void J9::Options::preProcessMmf(J9JavaVM *vm, J9JITConfig *jitConfig)
 
    if (J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_ENABLE_PORTABLE_SHARED_CACHE)
 #if defined(J9VM_OPT_CRIU_SUPPORT)
-       || vm->internalVMFunctions->isCheckpointAllowed(vmThread)
+       || vm->internalVMFunctions->isJVMInPortableRestoreMode(vmThread)
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
        )
       {
@@ -1559,7 +1568,7 @@ void J9::Options::preProcessMode(J9JavaVM *vm, J9JITConfig *jitConfig)
             {
             UDATA aggressivenessValue = 0;
             IDATA ret = GET_INTEGER_VALUE(argIndex, aggressiveOption, aggressivenessValue);
-            if (ret == OPTION_OK && aggressivenessValue >= 0)
+            if (ret == OPTION_OK && aggressivenessValue < LAST_AGGRESSIVENESS_LEVEL)
                {
                _aggressivenessLevel = aggressivenessValue;
                }
@@ -2368,7 +2377,7 @@ bool J9::Options::preProcessJitServer(J9JavaVM *vm, J9JITConfig *jitConfig)
             if (implicitClientMode && useJitServerExplicitlySpecified)
                {
                compInfo->setRemoteCompilationRequestedAtBootstrap(true);
-               if (!ifuncs->isNonPortableRestoreMode(currentThread))
+               if (ifuncs->isJVMInPortableRestoreMode(currentThread))
                    compInfo->setCanPerformRemoteCompilationInCRIUMode(true);
                }
 #endif
@@ -3135,24 +3144,37 @@ bool J9::Options::feLatePostProcess(void * base, TR::OptionSet * optionSet)
          }
       else // do AOT
          {
-         if (!self()->getOption(TR_DisablePersistIProfile))
+         // Turn off Iprofiler for the warm runs, but not if we cache only bootstrap classes
+         // This is because we may be missing IProfiler information for non-bootstrap classes
+         // that could not be stored in SCC
+         if (!self()->getOption(TR_DisablePersistIProfile) &&
+            J9_ARE_ALL_BITS_SET(javaVM->sharedClassConfig->runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_CACHE_NON_BOOT_CLASSES))
             {
-            // Turn off Iprofiler for the warm runs, but not if we cache only bootstrap classes
-            // This is because we may be missing IProfiler information for non-bootstrap classes
-            // that could not be stored in SCC
-            if (J9_ARE_ALL_BITS_SET(javaVM->sharedClassConfig->runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_CACHE_NON_BOOT_CLASSES))
+            TR::CompilationInfo * compInfo = getCompilationInfo(jitConfig);
+            if (compInfo->isWarmSCC() == TR_yes)
                {
-               TR::CompilationInfo * compInfo = getCompilationInfo(jitConfig);
-               static char * dnipdsp = feGetEnv("TR_DisableNoIProfilerDuringStartupPhase");
-               if (compInfo->isWarmSCC() == TR_yes && !dnipdsp)
-                  {
-                  self()->setOption(TR_NoIProfilerDuringStartupPhase);
-                  }
+               self()->setOption(TR_NoIProfilerDuringStartupPhase);
                }
             }
          }
       }
 #endif
+
+   // The use of -XX:[+/-]IProfileDuringStartupPhase sets if we always/never IProfile
+   // during the startup phase
+   {
+   // The FIND_ARG_IN_VMARGS macro expect the J9JavaVM to be in the `vm` variable, instead of `javaVM`
+   // The method uses the `vm` variable for the TR_J9VMBase
+   J9JavaVM * vm = javaVM;
+   const char *xxIProfileDuringStartupPhase  = J9::Options::_externalOptionStrings[J9::ExternalOptions::XXplusIProfileDuringStartupPhase];
+   const char *xxDisableIProfileDuringStartupPhase = J9::Options::_externalOptionStrings[J9::ExternalOptions::XXminusIProfileDuringStartupPhase];
+   int32_t xxIProfileDuringStartupPhaseArgIndex  = FIND_ARG_IN_VMARGS(EXACT_MATCH, xxIProfileDuringStartupPhase, 0);
+   int32_t xxDisableIProfileDuringStartupPhaseArgIndex = FIND_ARG_IN_VMARGS(EXACT_MATCH, xxDisableIProfileDuringStartupPhase, 0);
+   if (xxIProfileDuringStartupPhaseArgIndex > xxDisableIProfileDuringStartupPhaseArgIndex)
+      self()->setOption(TR_NoIProfilerDuringStartupPhase, false); // Override -Xjit:noIProfilerDuringStartupPhase
+   else if (xxDisableIProfileDuringStartupPhaseArgIndex >= 0)
+      self()->setOption(TR_NoIProfilerDuringStartupPhase);
+   }
 
    // Divide by 0 checks
    if (TR::Options::_LoopyMethodDivisionFactor == 0)

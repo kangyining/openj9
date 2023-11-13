@@ -748,7 +748,7 @@ releaseMutex:
 }
 
 J9ROMFieldOffsetWalkResult *
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9ROMFieldOffsetWalkState *state, U_32 flags, J9FlattenedClassCache *flattenedClassCache)
 #else /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9ROMFieldOffsetWalkState *state, U_32 flags)
@@ -767,7 +767,7 @@ fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9R
 	state->romClass = romClass;
 	state->hiddenInstanceFieldWalkIndex = (UDATA)-1;
 
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	state->flattenedClassCache = flattenedClassCache;
 
 	ObjectFieldInfo fieldInfo(vm, romClass, flattenedClassCache);
@@ -865,7 +865,7 @@ fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9R
 		}
 
 		state->result.totalInstanceSize = fieldInfo.calculateTotalFieldsSizeAndBackfill();
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		state->flatBackFillSize = fieldInfo.getBackfillSize();
 		state->classRequiresPrePadding = fieldInfo.doesClassRequiresPrePadding();
 		state->firstFlatDoubleOffset = fieldInfo.calculateFieldDataStart();
@@ -1000,7 +1000,7 @@ fieldOffsetsNextDo(J9ROMFieldOffsetWalkState *state)
 	BOOLEAN walkHiddenFields = FALSE;
 
 	state->result.field = NULL;
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	state->result.flattenedClass = NULL;
 #endif /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 
@@ -1102,10 +1102,12 @@ fieldOffsetsFindNext(J9ROMFieldOffsetWalkState *state, J9ROMFieldShape *field)
 			if( state->walkFlags & J9VM_FIELD_OFFSET_WALK_INCLUDE_INSTANCE ) {
 				{
 					if( modifiers & J9FieldFlagObject ) {
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 						J9UTF8 *fieldSig = J9ROMFIELDSHAPE_SIGNATURE(field);
 						U_8 *fieldSigBytes = J9UTF8_DATA(fieldSig);
-						if ('Q' == *fieldSigBytes) {
+						if (('Q' == *fieldSigBytes)
+							|| J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted)
+						) {
 							J9Class *fieldClass = NULL;
 							fieldClass = findJ9ClassInFlattenedClassCache(state->flattenedClassCache, fieldSigBytes + 1, J9UTF8_LENGTH(fieldSig) - 2);
 							if (!J9_IS_FIELD_FLATTENED(fieldClass, field)) {

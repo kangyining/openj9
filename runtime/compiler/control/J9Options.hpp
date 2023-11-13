@@ -123,7 +123,9 @@ enum ExternalOptions
    XXcodecachetotalMaxRAMPercentage            = 67,
    XXplusJITServerAOTCacheDelayMethodRelocation  = 68,
    XXminusJITServerAOTCacheDelayMethodRelocation = 69,
-   TR_NumExternalOptions                         = 70
+   XXplusIProfileDuringStartupPhase            = 70,
+   XXminusIProfileDuringStartupPhase           = 71,
+   TR_NumExternalOptions                       = 72
    };
 
 class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
@@ -277,6 +279,8 @@ class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
    static int32_t _iprofilerFailRateThreshold; // will reactivate Iprofiler if failure rate exceeds this threshold
    static int32_t _iprofilerFailHistorySize;
    static int32_t _iProfilerMemoryConsumptionLimit;
+   static int32_t _iProfilerBcHashTableSize;
+   static int32_t _iProfilerMethodHashTableSize;
    static int32_t _IprofilerOffSubtractionFactor;
    static int32_t _IprofilerOffDivisionFactor;
 

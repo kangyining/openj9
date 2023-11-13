@@ -163,6 +163,7 @@ public:
    virtual bool isForceInline(TR_ResolvedMethod *method) override;
    virtual bool isIntrinsicCandidate(TR_ResolvedMethod *method) override;
    virtual bool isDontInline(TR_ResolvedMethod *method) override;
+   virtual bool isChangesCurrentThread(TR_ResolvedMethod *method) override;
    virtual bool isClassVisible(TR_OpaqueClassBlock *sourceClass, TR_OpaqueClassBlock *destClass) override;
    virtual void markClassForTenuredAlignment(TR::Compilation *comp, TR_OpaqueClassBlock *clazz, uint32_t alignFromStart) override;
    virtual void reportHotField(int32_t reducedCpuUtil, J9Class* clazz, uint8_t fieldOffset,  uint32_t reducedFrequency) override;
@@ -202,6 +203,7 @@ public:
    virtual bool transformJlrMethodInvoke(J9Method *callerMethod, J9Class *callerClass) override;
    using TR_J9VM :: isAnonymousClass;
    virtual bool isAnonymousClass(TR_OpaqueClassBlock *j9clazz) override;
+   virtual bool isHiddenClass(TR_OpaqueClassBlock *j9clazz) override;
    virtual TR_IProfiler *getIProfiler() override;
    virtual TR_StaticFinalData dereferenceStaticFinalAddress(void *staticAddress, TR::DataType addressType) override;
    virtual void reserveTrampolineIfNecessary( TR::Compilation *, TR::SymbolReference *symRef, bool inBinaryEncoding) override;
@@ -247,6 +249,7 @@ public:
    virtual bool isMethodHandleExpectedType(TR::Compilation *comp, TR::KnownObjectTable::Index mhIndex, TR::KnownObjectTable::Index expectedTypeIndex) override;
    virtual bool inSnapshotMode() override;
    virtual bool isSnapshotModeEnabled() override;
+   virtual bool isPortableRestoreModeEnabled() override;
 
 private:
    bool instanceOfOrCheckCastHelper(J9Class *instanceClass, J9Class* castClass, bool cacheUpdate);

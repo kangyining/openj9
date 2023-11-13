@@ -3194,7 +3194,7 @@ done:
 				) {
 					continuationWalkState.flags = walkFlags;
 					continuationWalkRC = _vm->internalVMFunctions->walkContinuationStackFrames(
-							_currentThread, _currentThread->currentContinuation, &continuationWalkState);
+							_currentThread, _currentThread->currentContinuation, _currentThread->carrierThreadObject, &continuationWalkState);
 				}
 #endif /* JAVA_SPEC_VERSION >= 19 */
 				/* No need for VMStructHasBeenUpdated as the above walk cannot change the roots */
@@ -4353,7 +4353,7 @@ done:
 				rc = GOTO_THROW_CURRENT_EXCEPTION;
 			} else {
 				I_32 result = false;
-				if (VM_ValueTypeHelpers::isNameOrSignatureQtype(J9ROMFIELDSHAPE_SIGNATURE(fieldID->field))) {
+				if (VM_ValueTypeHelpers::isNameOrSignatureQtype(J9ROMFIELDSHAPE_SIGNATURE(fieldID->field)) || J9ROMFIELD_IS_NULL_RESTRICTED(fieldID->field)) {
 					result = (I_32)isFlattenableFieldFlattened(fieldID->declaringClass, fieldID->field);
 				}
 				restoreInternalNativeStackFrame(REGISTER_ARGS);

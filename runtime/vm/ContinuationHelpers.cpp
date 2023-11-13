@@ -343,6 +343,7 @@ freeContinuation(J9VMThread *currentThread, j9object_t continuationObject, BOOLE
 
 		/* Update Continuation object's vmRef field. */
 		J9VMJDKINTERNALVMCONTINUATION_SET_VMREF(currentThread, continuationObject, NULL);
+		J9VMJDKINTERNALVMCONTINUATION_SET_VTHREAD(currentThread, continuationObject, NULL);
 
 		recycleContinuation(currentThread->javaVM, currentThread, continuation, skipLocalCache);
 	}
@@ -456,7 +457,7 @@ copyFieldsFromContinuation(J9VMThread *currentThread, J9VMThread *vmThread, J9VM
 }
 
 UDATA
-walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continuation, J9StackWalkState *walkState)
+walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continuation, j9object_t threadObject, J9StackWalkState *walkState)
 {
 	Assert_VM_notNull(currentThread);
 
@@ -467,7 +468,7 @@ walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continu
 		J9VMEntryLocalStorage els = {0};
 
 		copyFieldsFromContinuation(currentThread, &stackThread, &els, continuation);
-
+		stackThread.threadObject = threadObject;
 		walkState->walkThread = &stackThread;
 		rc = currentThread->javaVM->walkStackFrames(currentThread, walkState);
 	}
@@ -479,11 +480,13 @@ walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continu
 jvmtiIterationControl
 walkContinuationCallBack(J9VMThread *vmThread, J9MM_IterateObjectDescriptor *object, void *userData)
 {
-	J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, object->object);
+	j9object_t continuationObj = object->object;
+	J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, continuationObj);
 	if (NULL != continuation) {
 		J9StackWalkState localWalkState = *(J9StackWalkState*)userData;
 		/* Walk non-null continuation's stack */
-		walkContinuationStackFrames(vmThread, continuation, &localWalkState);
+		j9object_t threadObject = VM_ContinuationHelpers::getThreadObjectForContinuation(vmThread, continuation, continuationObj);
+		walkContinuationStackFrames(vmThread, continuation, threadObject, &localWalkState);
 	}
 	return JVMTI_ITERATION_CONTINUE;
 }
@@ -528,17 +531,18 @@ acquireVThreadInspector(J9VMThread *currentThread, jobject thread, BOOLEAN spin)
 	J9JavaVM *vm = currentThread->javaVM;
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
-	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
-	I_64 vthreadInspectorCount;
+	j9object_t threadObj = NULL;
+	I_64 vthreadInspectorCount = 0;
 retry:
+	/* Consistently re-fetch threadObj for all the cases below. */
+	threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 	vthreadInspectorCount = J9OBJECT_I64_LOAD(currentThread, threadObj, vm->virtualThreadInspectorCountOffset);
 	if (vthreadInspectorCount < 0) {
 		/* Thread is in transition, wait. */
-		vmFuncs->internalExitVMToJNI(currentThread);
+		vmFuncs->internalReleaseVMAccess(currentThread);
 		VM_AtomicSupport::yieldCPU();
 		/* After wait, the thread may suspend here. */
-		vmFuncs->internalEnterVMFromJNI(currentThread);
-		threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+		vmFuncs->internalAcquireVMAccess(currentThread);
 		if (spin) {
 			goto retry;
 		} else {

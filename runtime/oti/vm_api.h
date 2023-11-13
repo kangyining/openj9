@@ -542,6 +542,19 @@ BOOLEAN
 isNonPortableRestoreMode(J9VMThread *currentThread);
 
 /**
+ * @brief Queries if portable restore mode (specified via
+ * -XX:+JVMPortableRestoreMode) is enabled. If so, the JVM
+ * will remain in portable mode after restore. However, this
+ * will have no impact on the JCL and taking another checkpoint
+ * will still not be permitted.
+ *
+ * @param currentThread vmthread token
+ * @return TRUE if enabled, FALSE otherwise
+ */
+BOOLEAN
+isJVMInPortableRestoreMode(J9VMThread *currentThread);
+
+/**
  * @brief JVM hooks to run before performing a JVM checkpoint
  *
  * @param currentThread vmthread token
@@ -2527,7 +2540,7 @@ instanceFieldOffsetWithSourceClass(J9VMThread *vmStruct, J9Class *clazz, U_8 *fi
 * @return J9ROMFieldOffsetWalkResult *
 */
 J9ROMFieldOffsetWalkResult *
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9ROMFieldOffsetWalkState *state, U_32 flags, J9FlattenedClassCache *flattenedClassCache);
 #else /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9ROMFieldOffsetWalkState *state, U_32 flags);
@@ -2678,7 +2691,7 @@ fullTraversalFieldOffsetsStartDo(J9JavaVM *vm, J9Class *clazz, J9ROMFullTraversa
 J9ROMFieldShape *
 fullTraversalFieldOffsetsNextDo(J9ROMFullTraversalFieldOffsetWalkState *state);
 
-#ifdef J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 /**
  * @brief Search for ramClass in flattened class cache
  *
@@ -4470,10 +4483,11 @@ copyFieldsFromContinuation(J9VMThread *currentThread, J9VMThread *vmThread, J9VM
  *
  * @param currentThread current thread
  * @param continuation the continuation to be walked
+ * @param threadObject the thread object whose state is stored in the continuation
  * @return 0 on success and non-zero on failure
  */
 UDATA
-walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continuation, J9StackWalkState *walkState);
+walkContinuationStackFrames(J9VMThread *currentThread, J9VMContinuation *continuation, j9object_t threadObject, J9StackWalkState *walkState);
 
 /**
  * @brief Walk all stackframes in the VM.

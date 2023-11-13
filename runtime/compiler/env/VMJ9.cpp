@@ -3872,6 +3872,19 @@ TR_J9VMBase::isDontInline(TR_ResolvedMethod *method)
    }
 
 bool
+TR_J9VMBase::isChangesCurrentThread(TR_ResolvedMethod *method)
+   {
+#if JAVA_SPEC_VERSION >= 21
+   TR_OpaqueMethodBlock* m = method->getPersistentIdentifier();
+   // @ChangesCurrentThread should be ignored if used outside the class library
+   if (isClassLibraryMethod(m))
+      return jitIsMethodTaggedWithChangesCurrentThread(vmThread(), (J9Method*)m);
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
+   return false;
+   }
+
+bool
 TR_J9VMBase::isIntrinsicCandidate(TR_ResolvedMethod *method)
    {
    return jitIsMethodTaggedWithIntrinsicCandidate(vmThread(),
@@ -6589,9 +6602,9 @@ TR_J9VMBase::getInstanceFieldOffset(TR_OpaqueClassBlock * clazz, char * fieldNam
 TR_OpaqueClassBlock *
 TR_J9VM::getSuperClass(TR_OpaqueClassBlock * classPointer)
    {
-   J9Class * clazz = TR::Compiler->cls.convertClassOffsetToClassPtr(classPointer);
-   UDATA classDepth = J9CLASS_DEPTH(clazz) - 1;
-   return convertClassPtrToClassOffset(classDepth >= 0 ? clazz->superclasses[classDepth]: 0);
+   J9Class *clazz = TR::Compiler->cls.convertClassOffsetToClassPtr(classPointer);
+   UDATA classDepth = J9CLASS_DEPTH(clazz);
+   return convertClassPtrToClassOffset(classDepth >= 1 ? clazz->superclasses[classDepth - 1] : 0);
    }
 
 bool
@@ -6974,6 +6987,17 @@ TR_J9VMBase::jitFieldsAreSame(TR_ResolvedMethod * method1, I_32 cpIndex1, TR_Res
    {
    TR::VMAccessCriticalSection jitFieldsAreSame(this);
    bool result = false;
+
+   // Hidden classes generated within the same host class do not have distinct class names,
+   // but share the same field names with different field data types and offsets. Therefore,
+   // name-based check for whether fields are same can result in false positives when it comes
+   // to hidden classes unless the fields are from the same j9class objects.
+   if (method1->classOfMethod()
+       && method2->classOfMethod()
+       && (isHiddenClass(method1->classOfMethod())
+          || isHiddenClass(method2->classOfMethod()))
+       && method1->classOfMethod() != method2->classOfMethod())
+      return false;
 
    bool sigSame = true;
    if (method1->fieldsAreSame(cpIndex1, method2, cpIndex2, sigSame))
@@ -9378,6 +9402,16 @@ TR_J9VMBase::inSnapshotMode()
    }
 
 bool
+TR_J9VMBase::isPortableRestoreModeEnabled()
+   {
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+   return getJ9JITConfig()->javaVM->internalVMFunctions->isJVMInPortableRestoreMode(vmThread());
+#else /* defined(J9VM_OPT_CRIU_SUPPORT) */
+   return false;
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+   }
+
+bool
 TR_J9VMBase::isSnapshotModeEnabled()
    {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
@@ -9654,7 +9688,7 @@ portLibCall_sysinfo_has_fixed_frame_C_calling_convention()
 
    /* AArch64 */
    #if defined(TR_HOST_ARM64) && defined(TR_TARGET_ARM64)
-      return false;
+      return true;
    #endif
 
    /* X86 */

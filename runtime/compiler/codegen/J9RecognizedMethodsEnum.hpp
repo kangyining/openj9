@@ -317,6 +317,7 @@
    java_util_HashMap_findNullKeyEntry,
    java_util_HashMap_get,
    java_util_HashMap_getNode,
+   java_util_HashMap_getNode_Object,
    java_util_HashMap_findNonNullKeyEntry,
    java_util_HashMap_putImpl,
    java_util_HashMap_resize,
@@ -433,6 +434,7 @@
 
    jdk_internal_misc_Unsafe_copyMemory0,
    jdk_internal_loader_NativeLibraries_load,
+   jdk_internal_util_ArraysSupport_vectorizedMismatch,
    jdk_internal_util_Preconditions_checkIndex,
 
    FirstVectorMethod,

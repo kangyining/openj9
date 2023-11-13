@@ -37,7 +37,6 @@
 
 #include "mmparse.h"
 
-#include "Configuration.hpp"
 #include "GCExtensions.hpp"
 #if defined(J9VM_GC_REALTIME)
 #include "Scheduler.hpp"
@@ -642,7 +641,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
-			extensions->configuration->_packetListSplitForced = true;
+			extensions->packetListSplitForced = true;
 			continue;
 		}
 		
@@ -657,7 +656,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
-			extensions->configuration->_cacheListSplitForced = true;
+			extensions->cacheListSplitForced = true;
 			continue;
 		}
 #endif /* J9VM_GC_MODRON_SCAVENGER */
@@ -701,7 +700,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				break;
 			}
 			extensions->enableHybridMemoryPool = true;
-			extensions->configuration->_splitFreeListAmountForced = true;
+			extensions->splitFreeListAmountForced = true;
 			continue;
 		}
 
@@ -716,7 +715,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
-			extensions->configuration->_splitFreeListAmountForced = true;
+			extensions->splitFreeListAmountForced = true;
 			continue;
 		}
 
@@ -1556,6 +1555,12 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			extensions->timingAddContinuationInList = MM_GCExtensions::onCreated;
 			continue;
 		}
+
+		if (try_scan(&scan_start, "forceGPFOnHeapInitializationError")) {
+			extensions->forceGPFOnHeapInitializationError = true;
+			continue;
+		}
+
 		/* Couldn't find a match for arguments */
 		j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTION_UNKNOWN, error_scan);
 		returnValue = JNI_EINVAL;

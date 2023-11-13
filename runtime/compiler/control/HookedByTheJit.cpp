@@ -36,6 +36,7 @@
 #include "vmaccess.h"
 #if JAVA_SPEC_VERSION >= 19
 #include "HeapIteratorAPI.h"
+#include "ContinuationHelpers.hpp"
 #endif /* JAVA_SPEC_VERSION >= 19 */
 #include "codegen/CodeGenerator.hpp"
 #include "compile/CompilationTypes.hpp"
@@ -572,14 +573,29 @@ static void jitHookInitializeSendTarget(J9HookInterface * * hook, UDATA eventNum
                compInfo->setAotQueryTime(compInfo->getAotQueryTime() + (UDATA)sharedQueryTime);
                }
             }
-         else // ROM class not in shared class cache
+         else // ROM class not in shared class cache (no space or ineligible - maybe because of implicit SCC)
             {
+            // SCC is used, either explicit or implicit; this is a sign that start-up may be important
+            // If there is enough CPU power to compile sooner, do so by using lower counts
+            // but only for the classes loaded during startup
+            if (!TR::Options::getCountsAreProvidedByUser() && !countInOptionSet)
+               {
+               if (TR::Options::getCmdLineOptions()->getOption(TR_UseLowerCountsForNonSCCMethodsDuringStartup) &&
+                   (jitConfig->javaVM->phase != J9VM_PHASE_NOT_STARTUP) &&
+                   TR::Compiler->target.numberOfProcessors() >= TR_NUMPROC_FOR_LARGE_SMP)
+                  {
+                  count = getCount(romMethod, optionsJIT, optionsAOT); // counts are lower when SCC is enabled
+                  }
 #if !defined(J9ZOS390)  // Do not change the counts on zos at the moment since the
-            // shared cache capacity is higher on this platform and by
-            // increasing counts we could end up significantly impacting startup
-            if (TR::Options::getCmdLineOptions()->getOption(TR_UseHigherCountsForNonSCCMethods))
-               count = J9ROMMETHOD_HAS_BACKWARDS_BRANCHES(romMethod) ? TR_DEFAULT_INITIAL_BCOUNT : TR_DEFAULT_INITIAL_COUNT;
+                        // shared cache capacity is higher on this platform and by
+                        // increasing counts we could end up significantly impacting startup
+               else
+                  {
+                  if (TR::Options::getCmdLineOptions()->getOption(TR_UseHigherCountsForNonSCCMethods))
+                     count = J9ROMMETHOD_HAS_BACKWARDS_BRANCHES(romMethod) ? TR_DEFAULT_INITIAL_BCOUNT : TR_DEFAULT_INITIAL_COUNT;
+                  }
 #endif // !J9ZOS390
+               }
             }
 #endif // defined(J9VM_INTERP_AOT_COMPILE_SUPPORT) && defined(J9VM_OPT_SHARED_CLASSES) && (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
          } // if (TR::Options::sharedClassCache())
@@ -1855,7 +1871,7 @@ static void jitHookPrepareRestore(J9HookInterface * * hookInterface, UDATA event
     * remove the portability restrictions on the target CPU (used
     * for JIT compiles) to allow optimal code generation
     */
-   if (!javaVM->internalVMFunctions->isCheckpointAllowed(vmThread))
+   if (!javaVM->internalVMFunctions->isJVMInPortableRestoreMode(vmThread))
       {
       TR::Compiler->target.cpu = TR::CPU::detect(TR::Compiler->omrPortLib);
       jitConfig->targetProcessor = TR::Compiler->target.cpu.getProcessorDescription();
@@ -6604,25 +6620,29 @@ static UDATA jitReleaseCodeStackWalkFrame(J9VMThread *vmThread, J9StackWalkState
 
 #if JAVA_SPEC_VERSION >= 19
 static void jitWalkContinuationStackFrames(J9HookInterface **hookInterface, UDATA eventNum, void *eventData, void *userData)
-{
-	MM_ContinuationIteratingEvent *continuationIteratingEvent = (MM_ContinuationIteratingEvent *)eventData;
-	J9VMThread * vmThread = continuationIteratingEvent->vmThread;
-	J9InternalVMFunctions *vmFuncs = vmThread->javaVM->internalVMFunctions;
-	J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, continuationIteratingEvent->object);
-	if (NULL != continuation) {
-		J9StackWalkState walkState;
-		walkState.flags     = J9_STACKWALK_ITERATE_HIDDEN_JIT_FRAMES | J9_STACKWALK_ITERATE_FRAMES | J9_STACKWALK_SKIP_INLINES;
-		walkState.skipCount = 0;
-		walkState.frameWalkFunction = jitReleaseCodeStackWalkFrame;
+   {
+   MM_ContinuationIteratingEvent *continuationIteratingEvent = (MM_ContinuationIteratingEvent *)eventData;
+   J9VMThread * vmThread = continuationIteratingEvent->vmThread;
+   J9InternalVMFunctions *vmFuncs = vmThread->javaVM->internalVMFunctions;
+   j9object_t continuationObj = continuationIteratingEvent->object;
+   J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, continuationObj);
+   if (NULL != continuation)
+      {
+      J9StackWalkState walkState;
+      walkState.flags     = J9_STACKWALK_ITERATE_HIDDEN_JIT_FRAMES | J9_STACKWALK_ITERATE_FRAMES | J9_STACKWALK_SKIP_INLINES;
+      walkState.skipCount = 0;
+      walkState.frameWalkFunction = jitReleaseCodeStackWalkFrame;
 
-		vmFuncs->walkContinuationStackFrames(vmThread, continuation, &walkState);
-	}
-}
+      j9object_t threadObject = VM_ContinuationHelpers::getThreadObjectForContinuation(vmThread, continuation, continuationObj);
+      vmFuncs->walkContinuationStackFrames(vmThread, continuation, threadObject, &walkState);
+      }
+   }
 
 static jvmtiIterationControl jitWalkContinuationCallBack(J9VMThread *vmThread, J9MM_IterateObjectDescriptor *object, void *userData)
    {
    J9InternalVMFunctions *vmFuncs = vmThread->javaVM->internalVMFunctions;
-   J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, object->object);
+   j9object_t continuationObj = object->object;
+   J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, continuationObj);
    if (NULL != continuation)
       {
       bool yieldHappened = false;
@@ -6632,7 +6652,10 @@ static jvmtiIterationControl jitWalkContinuationCallBack(J9VMThread *vmThread, J
          walkState.flags     = J9_STACKWALK_ITERATE_HIDDEN_JIT_FRAMES | J9_STACKWALK_ITERATE_FRAMES | J9_STACKWALK_SKIP_INLINES;
          walkState.skipCount = 0;
          walkState.frameWalkFunction = jitReleaseCodeStackWalkFrame;
-         vmFuncs->walkContinuationStackFrames(vmThread, continuation, &walkState);
+
+         j9object_t threadObject = VM_ContinuationHelpers::getThreadObjectForContinuation(vmThread, continuation, continuationObj);
+         vmFuncs->walkContinuationStackFrames(vmThread, continuation, threadObject, &walkState);
+
          continuation->dropFlags = 0x1;
          condYieldFromGCFunctionPtr condYield = (condYieldFromGCFunctionPtr)userData;
          yieldHappened = condYield(vmThread->omrVMThread, J9_GC_METRONOME_UTILIZATION_COMPONENT_JIT);
@@ -6695,14 +6718,14 @@ static void jitReleaseCodeStackWalk(OMR_VMThread *omrVMThread, condYieldFromGCFu
                thread->dropFlags |= 0x1;
                }
 
-            if ((NULL!= thread->currentContinuation) && ((thread->currentContinuation->dropFlags & 0x1) ? false : true))
+            if ((NULL != thread->currentContinuation) && ((thread->currentContinuation->dropFlags & 0x1) ? false : true))
                /* If a continuation is mounted, always walk the continuation as that represent the CarrierThread */
                {
                   J9StackWalkState walkState;
                   walkState.flags     = J9_STACKWALK_ITERATE_HIDDEN_JIT_FRAMES | J9_STACKWALK_ITERATE_FRAMES | J9_STACKWALK_SKIP_INLINES;
                   walkState.skipCount = 0;
                   walkState.frameWalkFunction = jitReleaseCodeStackWalkFrame;
-                  vmFuncs->walkContinuationStackFrames(vmThread, thread->currentContinuation, &walkState);
+                  vmFuncs->walkContinuationStackFrames(vmThread, thread->currentContinuation, thread->carrierThreadObject, &walkState);
                   thread->currentContinuation->dropFlags |= 0x1;
                }
 
