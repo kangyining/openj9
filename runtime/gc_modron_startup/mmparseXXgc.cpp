@@ -1561,6 +1561,20 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			continue;
 		}
 
+		if (try_scan(&scan_start, "fvtest_RAMSize=")) {
+			extensions->testRAMSize = true;
+			if(!scan_udata_helper(vm, &scan_start, &(extensions->testRAMSize), "fvtest_RAMSize=")) {
+				returnValue = JNI_EINVAL;
+				break;
+			}
+			if ((0 > extensions->testRAMSize) || (500 < extensions->testRAMSize)) {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_RAMSize=", (UDATA)0, (UDATA)500);
+				returnValue = JNI_EINVAL;
+				break;
+			}
+			j9tty_printf(PORTLIB, "Current testRam is: %llu\n", extensions->testRAMSize);
+			continue;
+		}
 		/* Couldn't find a match for arguments */
 		j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTION_UNKNOWN, error_scan);
 		returnValue = JNI_EINVAL;

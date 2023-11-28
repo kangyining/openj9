@@ -229,6 +229,7 @@ public:
 		onStarted = 1,
 	};
 	TimingAddContinuationInList timingAddContinuationInList;
+	uintptr_t testRAMSize;
 protected:
 private:
 protected:
@@ -425,6 +426,7 @@ public:
 		, forceGPFOnHeapInitializationError(false)
 		, continuationListOption(enable_continuation_list)
 		, timingAddContinuationInList(onCreated)
+		, testRAMSize(0)
 	{
 		_typeId = __FUNCTION__;
 	}
