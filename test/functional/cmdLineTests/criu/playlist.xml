@@ -542,4 +542,27 @@
 			<impl>openj9</impl>
 		</impls>
 	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_softmx</testCaseName>
+		<command>
+			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+			-DSCRIPPATH=$(TEST_RESROOT)$(D)criuSoftmxScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(SQ)$(JVM_OPTIONS)$(SQ) \
+			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)test.xml$(Q) \
+			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			$(TEST_STATUS)
+		</command>
+		<features>
+			<feature>CRIU:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+	</test>
 </playlist>
