@@ -32,7 +32,11 @@ echo "start running script";
 # $6 is the NUM_CHECKPOINT
 # $7 is the KEEP_CHECKPOINT
 # $8 is the KEEP_TEST_OUTPUT
-# $9 is the test-specific argument 
+# $9 is the dynamicHeapAdjustmentForRestore
+# $10 is the Xmx
+# $11 is the MaxRAMPercentage
+# $12 is the Xms
+# $13 is the Xsoftmx
 echo "export GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load";
 export GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load
 echo "export LD_BIND_NOT=on";
@@ -47,7 +51,7 @@ fi
 
 Xmx=""
 if [ "${10}" == true ]; then
-    Xmx="-Xmx64g"
+    Xmx="-Xmx$((MEMORY/2))k"
 fi
 
 MaxRAMPercentage=""
@@ -57,27 +61,22 @@ fi
 
 Xms=""
 if [ "${12}" == true ]; then
-    Xms="-Xms2g"
+    Xms="-Xms$((MEMORY/8))k"
 fi
 
 Xsoftmx=""
 if [ "${13}" == true ]; then
-    Xsoftmx="-Xms2g"
+    Xsoftmx="-Xsoftmx$((MEMORY/8))k"
 fi
 echo $Xmx
 echo $MaxRAMPercentage
 echo $Xms
+echo $Xsoftmx
 echo "HERE"
-echo "We are using $2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
-$2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
+echo "$2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
+$2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
 cat testOutput criuOutput;
 echo "finish"
-
-
-# Xmx=""
-# if [ "$10" == true]; then
-#     Xmx=
-# fi
 
 if [ "$7" != true ]; then
     NUM_CHECKPOINT=$6

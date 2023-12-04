@@ -1368,20 +1368,21 @@ gcParseReconfigurableCommandLine(J9JavaVM* vm, J9VMInitArgs* args)
 		}
 		extensions->softMx = softmx;
 	}
-	if (-1 != FIND_ARG_IN_ARGS(args, EXACT_MEMORY_MATCH, "XXgc:fvtest_RAMSize=", NULL)) {
-		double testRAMSize = 0;
-		result = option_set_to_opt_double_args(vm, "XXgc:fvtest_RAMSize=", &index, EXACT_MEMORY_MATCH, &testRAMSize, args);
+	if (-1 != FIND_ARG_IN_ARGS(args, EXACT_MEMORY_MATCH, "-XXgc:fvtest_testRAMSizePercentage=", NULL)) {
+		double localRAMSizePercent = 0;
+		result = option_set_to_opt_double_args(vm, "-XXgc:fvtest_testRAMSizePercentage=", &index, EXACT_MEMORY_MATCH, &localRAMSizePercent, args);
 		if (OPTION_OK != result) {
 			if (OPTION_MALFORMED == result) {
-				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, "XXgc:fvtest_RAMSize");
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, "XXgc:fvtest_testRAMSizePercentage");
 			}
 			goto _error;
 		}
-		if ((0 > extensions->testRAMSize) || (500 < extensions->testRAMSize)) {
-			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_RAMSize=", (UDATA)0, (UDATA)500);
+		if ((0 > localRAMSizePercent) || (500 < localRAMSizePercent)) {
+			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_testRAMSizePercentage=", (UDATA)0, (UDATA)500);
 			goto _error;
 		}
-		j9tty_printf(PORTLIB, "Current testRam in restore is: %llu\n", extensions->testRAMSize);
+		j9tty_printf(PORTLIB, "Current testRam in restore is: %llu\n", localRAMSizePercent);
+		extensions->testRAMSizePercentage = localRAMSizePercent;
 	}
 	if (!gcParseReconfigurableSoverignArguments(vm, args)) {
 		goto _error;
