@@ -73,10 +73,8 @@ echo $MaxRAMPercentage
 echo $Xms
 echo $Xsoftmx
 echo "HERE"
-echo "$2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
-$2 -XX:+EnableCRIUSupport -verbose:gc $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
-cat testOutput criuOutput;
-echo "finish"
+echo "$2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
+$2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
 
 if [ "$7" != true ]; then
     NUM_CHECKPOINT=$6
@@ -85,8 +83,10 @@ if [ "$7" != true ]; then
         criu restore -D ./cpData --shell-job >criuOutput 2>&1;
     done
 fi
+echo "restored"
 
-
+cat testOutput;
+cat output.txt
 if  [ "$7" != true ]; then
     if [ "$8" != true ]; then
         rm -rf testOutput criuOutput

@@ -27,7 +27,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-
+import java.nio.file.Files;
+import java.lang.management.*;
+import java.util.*;
+import java.util.stream.*;
+import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import org.eclipse.openj9.criu.*;
 
 public class SoftmxTest {
@@ -35,17 +41,37 @@ public class SoftmxTest {
 		String test = args[0];
 
 		switch (test) {
-		case "PropertiesTest1":
-			propertiesTest1();
+		case "EmptyTest":
+			EmptyTest();
+			break;
+		case "HalfSize":
+			PercentAndSoftmx(1, 0);
+			System.out.println("FINISH");
+			System.out.println("FINISH");
+			System.out.println("FINISH");
+			break;
+		case "FullSize":
+			PercentAndSoftmx(2, 0);
+			break;
+		case "OneAndHalfSize":
+			PercentAndSoftmx(3, 0);
+			break;
+		case "HalfSizeSoftmxRestore":
+			PercentAndSoftmx(1, 1);
+			break;
+		case "FullSizeSoftmxRestore":
+			PercentAndSoftmx(2, 1);
+			break;
+		case "OneAndHalfSizeSoftmxRestore":
+			PercentAndSoftmx(3, 1);
 			break;
 		default:
 			throw new RuntimeException("incorrect parameters");
 		}
 
 	}
-
-	static void propertiesTest1() {
-		String optionsContents = "-Dprop1=val1\n-Dprop2=val2\n-Dprop3=val3";
+	static void EmptyTest() {
+		String optionsContents = "";
 		Path optionsFilePath = CRIUTestUtils.createOptionsFile("options", optionsContents);
 
 		Path imagePath = Paths.get("cpData");
@@ -57,17 +83,50 @@ public class SoftmxTest {
 		CRIUTestUtils.checkPointJVM(criuSupport, imagePath, true);
 		System.out.println("Post-checkpoint");
 
-		if (!System.getProperty("prop1").equalsIgnoreCase("val1")) {
-			System.out.println("ERR: failed properties test");
-		}
-
-		if (!System.getProperty("prop2").equalsIgnoreCase("val2")) {
-			System.out.println("ERR: failed properties test");
-		}
-
-		if (!System.getProperty("prop3").equalsIgnoreCase("val3")) {
-			System.out.println("ERR: failed properties test");
-		}
 	}
+	static void PercentAndSoftmx(Integer percent_type, Integer restore_type) {
+		String optionsContents = "-XXgc:fvtest_testRAMSizePercentage=";
+		if (1 == percent_type) {
+			optionsContents += "50";
+		}
+		else if (2 == percent_type) {
+			optionsContents += "100";
+		}
+		else if (3 == percent_type) {
+			optionsContents += "150";
+		}
+		optionsContents += "\n-Xverbosegclog:output.txt";
+		if (1 == restore_type) {
+			optionsContents += "\n";
+			optionsContents += "-Xsoftmx";
+			long memorySize = ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
+			optionsContents = optionsContents + Long.toString(memorySize/1024/8) + "k";
+		}
+		Path optionsFilePath = CRIUTestUtils.createOptionsFile("options", optionsContents);
+		Path imagePath = Paths.get("cpData");
+		CRIUTestUtils.createCheckpointDirectory(imagePath);
+		CRIUSupport criuSupport = new CRIUSupport(imagePath);
+		criuSupport.registerRestoreOptionsFile(optionsFilePath);
 
+		System.out.println("Pre-checkpoint");
+		CRIUTestUtils.checkPointJVM(criuSupport, imagePath, true);
+		System.out.println("Post-checkpoint");
+	}
+	public static String censor(String text,String word) throws IOException {
+        String stars = "";
+        for (int i = 0; i < word.length(); i++)
+            if (word.charAt(i) != ' ') {
+                stars += '#';
+            } else {
+                stars += ' ';
+            }
+        text = text.replaceAll(word, stars);
+
+        File path = new File("E:\\java\\program\\src\\newtextfile.txt");
+        FileWriter wr = new FileWriter(path);
+        wr.write(text);
+        wr.flush();
+        wr.close();
+        return text;
+    }
 }

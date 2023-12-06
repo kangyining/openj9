@@ -1381,7 +1381,6 @@ gcParseReconfigurableCommandLine(J9JavaVM* vm, J9VMInitArgs* args)
 			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_testRAMSizePercentage=", (UDATA)0, (UDATA)500);
 			goto _error;
 		}
-		j9tty_printf(PORTLIB, "Current testRam in restore is: %llu\n", localRAMSizePercent);
 		extensions->testRAMSizePercentage = localRAMSizePercent;
 	}
 	if (!gcParseReconfigurableSoverignArguments(vm, args)) {

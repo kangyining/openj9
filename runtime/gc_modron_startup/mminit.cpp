@@ -3194,8 +3194,12 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 	 * and the original heap geometry from snapshot run remains unchanged.
 	 */
 	extensions->usablePhysicalMemory = omrsysinfo_get_addressable_physical_memory();
+	j9tty_printf(PORTLIB, "Previous RAM is: %llu\n", extensions->usablePhysicalMemory);
+	j9tty_printf(PORTLIB, "percent is: %f\n", extensions->testRAMSizePercentage);
+	j9tty_printf(PORTLIB, "percent divide by 100 is: %f\n", extensions->testRAMSizePercentage / 100.0);
+	j9tty_printf(PORTLIB, "previous memoryMax is: %llu\n", extensions->memoryMax);
 	if (0.0 <= extensions->testRAMSizePercentage) {
-		extensions->usablePhysicalMemory = (uint64_t)extensions->testRAMSizePercentage / 100.0 * extensions->usablePhysicalMemory;
+		extensions->usablePhysicalMemory = (uint64_t)(extensions->testRAMSizePercentage / 100.0 * extensions->usablePhysicalMemory);
 	}
 	j9tty_printf(PORTLIB, "Current RAM is: %llu\n", extensions->usablePhysicalMemory);
 	/* If the thread count is being forced, check its validity and display a warning message if it is invalid, then mark it as invalid. */
@@ -3222,13 +3226,17 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 		 */
 		if ((0.0 <= extensions->maxRAMPercent) && !extensions->userSpecifiedParameters._Xmx._wasSpecified) {
 			candidateSoftMx = extensions->maxRAMPercent * extensions->usablePhysicalMemory / 100.0;
+			j9tty_printf(PORTLIB, "route 1\n");
 		} else {
 			/**
 			 * Since CRIU snapshot/restore is not supported in Java 8, we will
 			 * always pass false to computeDefaultMaxHeapForJava().
 			 */
 			candidateSoftMx = extensions->computeDefaultMaxHeapForJava(false);
+			j9tty_printf(PORTLIB, "route 2\n");
 		}
+		j9tty_printf(PORTLIB, "Current candidateSoftMx is: %llu\n", candidateSoftMx);
+		j9tty_printf(PORTLIB, "Current memoryMax is: %llu\n", extensions->memoryMax);
 		/**
 		 * When dynamicHeapAdjustmentForRestore is set, the candidateSoftmx is
 		 * preferred over being refused based on other values.
@@ -3287,6 +3295,7 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 			}
 		}
 		extensions->softMx = candidateSoftMx;
+		j9tty_printf(PORTLIB, "Current softmx is: %llu\n", extensions->softMx);
 	}
 	return true;
 _error:
