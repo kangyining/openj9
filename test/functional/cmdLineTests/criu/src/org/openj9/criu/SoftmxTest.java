@@ -46,9 +46,6 @@ public class SoftmxTest {
 			break;
 		case "HalfSize":
 			PercentAndSoftmx(1, 0);
-			System.out.println("FINISH");
-			System.out.println("FINISH");
-			System.out.println("FINISH");
 			break;
 		case "FullSize":
 			PercentAndSoftmx(2, 0);
@@ -112,21 +109,4 @@ public class SoftmxTest {
 		CRIUTestUtils.checkPointJVM(criuSupport, imagePath, true);
 		System.out.println("Post-checkpoint");
 	}
-	public static String censor(String text,String word) throws IOException {
-        String stars = "";
-        for (int i = 0; i < word.length(); i++)
-            if (word.charAt(i) != ' ') {
-                stars += '#';
-            } else {
-                stars += ' ';
-            }
-        text = text.replaceAll(word, stars);
-
-        File path = new File("E:\\java\\program\\src\\newtextfile.txt");
-        FileWriter wr = new FileWriter(path);
-        wr.write(text);
-        wr.flush();
-        wr.close();
-        return text;
-    }
 }

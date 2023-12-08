@@ -41,32 +41,36 @@ echo "export GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AV
 export GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load
 echo "export LD_BIND_NOT=on";
 export LD_BIND_NOT=on
+$2 -verbose:gc >initialCheck 2>&1;
+ifContainer=$(cat initialCheck | grep "using container" | cut -d'"' -f 4)
+ifMemLimit=$(cat initialCheck | grep "container memory limit set" | cut -d'"' -f 4)
 
-MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+if [ "${ifContainer}" = "false" ] || [ "${ifMemLimit}" = "false" ]; then
+    echo "Not a target testing situation, test terminated."
+    exit 1
+fi
+# MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 echo $MEMORY
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
     XDynamicHeapAdjustment="-XX:+dynamicHeapAdjustmentForRestore"
 fi
-
 Xmx=""
 if [ "${10}" == true ]; then
-    Xmx="-Xmx$((MEMORY/2))k"
+    Xmx="-Xmx$((MEMORY*2))"
 fi
-
 MaxRAMPercentage=""
 if [ "${11}" == true ]; then
     MaxRAMPercentage="-XX:MaxRAMPercentage=50"
 fi
-
 Xms=""
 if [ "${12}" == true ]; then
-    Xms="-Xms$((MEMORY/8))k"
+    Xms="-Xms$((MEMORY/2))"
 fi
-
 Xsoftmx=""
 if [ "${13}" == true ]; then
-    Xsoftmx="-Xsoftmx$((MEMORY/8))k"
+    Xsoftmx="-Xsoftmx$((MEMORY/2))"
 fi
 echo $Xmx
 echo $MaxRAMPercentage
@@ -83,13 +87,39 @@ if [ "$7" != true ]; then
         criu restore -D ./cpData --shell-job >criuOutput 2>&1;
     done
 fi
-echo "restored"
-
+echo "test output"
 cat testOutput;
+echo "restore ouptut"
+cat criuOutput
+echo "restore verbose"
 cat output.txt
+# get the decimal representation of the current softmx value
+softMX=$(($(cat output.txt | grep "softMx" | cut -d'"' -f 4)))
+echo $softMX
+
+if [ "$9" = true ]; then
+# XdynamicHeapAdjustmentRestore is true
+    if ["${10}" = true]; then
+    # Xmx is set
+        if ["${11}" = true]; then
+        # XX:MaxRAMPercentage=50 is set
+        else
+        # XX:MaxRAMPercentage=50 is not set
+        fi
+    else
+    # Xmx is not set
+        if ["${11}" = true]; then
+        # XX:MaxRAMPercentage=50 is set
+        fi
+
+    fi
+
+else
+# XdynamicHeapAdjustmentRestore is false
+fi
 if  [ "$7" != true ]; then
     if [ "$8" != true ]; then
-        rm -rf testOutput criuOutput
+        rm -rf testOutput criuOutput output.txt
         echo "Removed test output files"
     fi
 fi

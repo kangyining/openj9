@@ -250,6 +250,8 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 	OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
 	uintptr_t maxMemoryValue = memoryMax;
 	omrtty_printf("Current maxmemory 1 is: %llu\n", maxMemoryValue);
+	omrtty_printf("Current container status: %llu\n", omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY));
+	omrtty_printf("Current container memlimit set: %llu\n",omrsysinfo_cgroup_is_memlimit_set());
 	if (OMR_CGROUP_SUBSYSTEM_MEMORY == omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY)) {
 		if (omrsysinfo_cgroup_is_memlimit_set()) {
 			/* If running in a cgroup with memory limit > 1G, reserve at-least 512M for JVM's internal requirements
@@ -258,7 +260,7 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 			 * estimate of the JVM's internal requirements, given that one compilation thread can use up to 256M.
 			 */
 #define OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP ((uint64_t)512 * 1024 * 1024)
-			omrtty_printf("going here");
+			omrtty_printf("going here\n");
 			maxMemoryValue = (uintptr_t)OMR_MAX((int64_t)(usablePhysicalMemory / 2), (int64_t)(usablePhysicalMemory - OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP));
 			maxMemoryValue = (uintptr_t)OMR_MIN(maxMemoryValue, (usablePhysicalMemory / 4) * 3);
 #undef OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP
