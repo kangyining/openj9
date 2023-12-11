@@ -1682,7 +1682,6 @@ gcParseCommandLineAndInitializeWithValues(J9JavaVM *vm, IDATA *memoryParameters)
 			}
 		}
 		/* set default max heap for Java */
-		// j9tty_printf(PORTLIB, "BEFORE SET MEM MAX\n");
 		extensions->memoryMax = extensions->computeDefaultMaxHeapForJava(enableOriginalJDK8HeapSizeCompatibilityOption);
 		extensions->maxSizeDefaultMemorySpace = extensions->memoryMax;
 	}

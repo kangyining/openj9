@@ -46,8 +46,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-  
-
   <test id="Create Criu Checkpoint with softmx 1 dynamic none@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSize 1 false false true false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -67,8 +65,7 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: softMX value should be 0 but it's not</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
-  </test> 
-  
+  </test>
   <test id="Create Criu Checkpoint with softmx 1 dynamic none@150">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ OneAndHalfSize 1 false false true false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -214,7 +211,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
- 
   <test id="Create Criu Checkpoint with softmx 4 dynamic Xmx MaxRAMPercentage@50">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSize 1 false false true true true false false 3 8</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -235,7 +231,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 4 dynamic Xmx MaxRAMPercentage@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSize 1 false false true true true false false 3 4</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -277,7 +272,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
- 
   <test id="Create Criu Checkpoint with softmx 5 dynamic xms@50">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSize 1 false false true false false true false 1 2</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -298,7 +292,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 5 dynamic xms@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSize 1 false false true false false true false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -382,7 +375,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 6 dynamic softmx@150">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ OneAndHalfSize 1 false false true false false false true 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -444,7 +436,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 7 dynamic softmxRestore@150">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ OneAndHalfSizeSoftmxRestore 1 false false true false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -465,7 +456,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 8 dynamic softmx softmxRestore@50">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSizeSoftmxRestore 1 false false true false false false true 3 8</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -486,7 +476,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 8 dynamic softmx softmxRestore@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSizeSoftmxRestore 1 false false true false false false true 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -507,7 +496,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-  
   <test id="Create Criu Checkpoint with softmx 8 dynamic softmx softmxRestore@150">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ OneAndHalfSizeSoftmxRestore 1 false false true false false false true 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -528,8 +516,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
- 
-
   <test id="Create Criu Checkpoint with softmx 9 none@50">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSize 1 false false false false false false false 3 8</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -550,7 +536,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 9 none@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSize 1 false false false false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
@@ -571,7 +556,6 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-
   <test id="Create Criu Checkpoint with softmx 9 none@150">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ OneAndHalfSize 1 false false false false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
