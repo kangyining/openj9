@@ -37,6 +37,8 @@ echo "start running script";
 # $11 is the MaxRAMPercentage
 # $12 is the Xms
 # $13 is the Xsoftmx
+# $14 is the expected softmx numerator
+# $15 is the expected softmx denominator
 echo "export GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load";
 export GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load
 echo "export LD_BIND_NOT=on";
@@ -96,31 +98,30 @@ cat output.txt
 # get the decimal representation of the current softmx value
 softMX=$(($(cat output.txt | grep "softMx" | cut -d'"' -f 4)))
 echo $softMX
-
-if [ "$9" = true ]; then
-# XdynamicHeapAdjustmentRestore is true
-    if ["${10}" = true]; then
-    # Xmx is set
-        if ["${11}" = true]; then
-        # XX:MaxRAMPercentage=50 is set
-        else
-        # XX:MaxRAMPercentage=50 is not set
-        fi
-    else
-    # Xmx is not set
-        if ["${11}" = true]; then
-        # XX:MaxRAMPercentage=50 is set
-        fi
-
-    fi
-
-else
-# XdynamicHeapAdjustmentRestore is false
-fi
 if  [ "$7" != true ]; then
     if [ "$8" != true ]; then
         rm -rf testOutput criuOutput output.txt
         echo "Removed test output files"
+    fi
+fi
+if [ "$((${14}))" -eq 0 ]; then
+    if [ "$softMX" -ne 0 ]; then
+        echo "Error condition: softMX value should be 0 but it's not."
+        exit 1
+    fi
+    echo "Success condition: SoftMX value is 0 as expected."
+    exit 1
+fi
+echo "$(($MEMORY*${14}/${15}))"
+if ["$((${15}))" -eq 0]; then
+    echo "Error condition: the denominator should never be 0."
+    exit 1
+else
+    echo "Both are not 0, we check the proposed softmx against the actual one."
+    if [ "$softMX" -eq "$(($MEMORY*${14}/${15}))" ]; then
+        echo "Success condition: The proposed softmx equals the actual one."
+    else
+        echo "Error condition: the proposed softmx doesn't equal the actual one."
     fi
 fi
 echo "finished script";
