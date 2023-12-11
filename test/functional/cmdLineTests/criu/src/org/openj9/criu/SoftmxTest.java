@@ -97,7 +97,7 @@ public class SoftmxTest {
 			optionsContents += "\n";
 			optionsContents += "-Xsoftmx";
 			long memorySize = ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
-			optionsContents = optionsContents + Long.toString(memorySize/1024/8) + "k";
+			optionsContents = optionsContents + Long.toString(memorySize/1024/8*3) + "k";
 		}
 		Path optionsFilePath = CRIUTestUtils.createOptionsFile("options", optionsContents);
 		Path imagePath = Paths.get("cpData");
