@@ -229,7 +229,7 @@ public:
 		onStarted = 1,
 	};
 	TimingAddContinuationInList timingAddContinuationInList;
-	double testRAMSizePercentage;
+	double testRAMSizePercentage; /**< a percentage to increase/decrease usablePhysicalMemory - for GC testing only */
 protected:
 private:
 protected:
