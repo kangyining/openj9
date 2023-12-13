@@ -1482,7 +1482,14 @@ gcParseXXArguments(J9JavaVM *vm)
 				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, "-XX:CheckpointGCThreads=", (UDATA)0);
 				goto _error;
 			}
+			j9tty_printf(PORTLIB, "Current cp gc thread count: %llu\n", extensions->checkpointGCthreadCount);
+			j9tty_printf(PORTLIB, "Current gc thread count: %llu\n", extensions->gcThreadCount);
+			if (extensions->checkpointGCthreadCount > extensions->gcThreadCount) {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NO_GREATER_THAN, "-XX:CheckpointGCThreads=", VMOPT_XGCTHREADS);
+				goto _error;
+			}
 		}
+		
 	}
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
