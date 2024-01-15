@@ -544,6 +544,11 @@
 	</test>
 	<test>
 		<testCaseName>cmdLineTester_criu_softmx</testCaseName>
+		<disables>
+			<disable>
+				<comment>https://github.com/eclipse-openj9/openj9/pull/18532#discussion_r1450778067</comment>
+			<disable>
+		</disables>
 		<command>
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
 			-DSCRIPPATH=$(TEST_RESROOT)$(D)criuSoftmxScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
