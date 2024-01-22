@@ -111,9 +111,10 @@ Java_openj9_internal_criu_InternalCRIUSupport_checkpointJVMImpl(JNIEnv *env,
 		jboolean trackMemory,
 		jboolean unprivileged,
 		jstring optionsFile,
-		jstring environmentFile)
+		jstring environmentFile,
+		jint ghostFileLimit)
 {
-	((J9VMThread*)env)->javaVM->internalVMFunctions->criuCheckpointJVMImpl(env, imagesDir, leaveRunning, shellJob, extUnixSupport, logLevel, logFile, fileLocks, workDir, tcpEstablished, autoDedup, trackMemory, unprivileged, optionsFile, environmentFile);
+	((J9VMThread*)env)->javaVM->internalVMFunctions->criuCheckpointJVMImpl(env, imagesDir, leaveRunning, shellJob, extUnixSupport, logLevel, logFile, fileLocks, workDir, tcpEstablished, autoDedup, trackMemory, unprivileged, optionsFile, environmentFile, ghostFileLimit);
 }
 
 jobject JNICALL

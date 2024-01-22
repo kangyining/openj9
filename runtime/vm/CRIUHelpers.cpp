@@ -965,6 +965,7 @@ setupJNIFieldIDsAndCRIUAPI(JNIEnv *env, jclass *currentExceptionClass, IDATA *sy
 		|| j9sl_lookup_name(vmCheckpointState->libCRIUHandle, (char*)"criu_set_track_mem", (UDATA*)&vmCheckpointState->criuSetTrackMemFunctionPointerType, "Z")
 		|| j9sl_lookup_name(vmCheckpointState->libCRIUHandle, (char*)"criu_set_work_dir_fd", (UDATA*)&vmCheckpointState->criuSetWorkDirFdFunctionPointerType, "P")
 		|| j9sl_lookup_name(vmCheckpointState->libCRIUHandle, (char*)"criu_init_opts", (UDATA*)&vmCheckpointState->criuInitOptsFunctionPointerType, "V")
+		|| j9sl_lookup_name(vmCheckpointState->libCRIUHandle, (char*)"criu_set_ghost_limit", (UDATA*)&vmCheckpointState->criuSetGhostFileLimitFunctionPointerType, "V")
 		|| j9sl_lookup_name(vmCheckpointState->libCRIUHandle, (char*)"criu_dump", (UDATA*)&vmCheckpointState->criuDumpFunctionPointerType, "V")
 	) {
 		*currentExceptionClass = criuSystemCheckpointExceptionClass;
@@ -1448,7 +1449,8 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		jboolean trackMemory,
 		jboolean unprivileged,
 		jstring optionsFile,
-		jstring environmentFile)
+		jstring environmentFile,
+		jint ghostFileLimit)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
 	J9JavaVM *vm = currentThread->javaVM;
@@ -1641,7 +1643,10 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		vm->checkpointState.criuSetTcpEstablishedFunctionPointerType(JNI_FALSE != tcpEstablished);
 		vm->checkpointState.criuSetAutoDedupFunctionPointerType(JNI_FALSE != autoDedup);
 		vm->checkpointState.criuSetTrackMemFunctionPointerType(JNI_FALSE != trackMemory);
-
+		if (ghostFileLimit != 0) {
+			vm->checkpointState.criuSetGhostFileLimitFunctionPointerType((int) ghostFileLimit);
+		}
+		
 		if (NULL != workDir) {
 			vm->checkpointState.criuSetWorkDirFdFunctionPointerType(workDirFD);
 		}
