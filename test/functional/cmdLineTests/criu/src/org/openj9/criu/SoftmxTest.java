@@ -35,6 +35,9 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import org.eclipse.openj9.criu.*;
+import java.lang.management.ManagementFactory;
+import com.sun.management.OperatingSystemMXBean;
+
 
 public class SoftmxTest {
 	public static void main(String[] args) {
