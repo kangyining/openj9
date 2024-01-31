@@ -35,8 +35,6 @@ import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import org.eclipse.openj9.criu.*;
-import java.lang.management.ManagementFactory;
-import com.sun.management.OperatingSystemMXBean;
 
 
 public class SoftmxTest {
@@ -82,7 +80,17 @@ public class SoftmxTest {
 		if (1 == restore_type) {
 			optionsContents += "\n";
 			optionsContents += "-Xsoftmx";
-			long memorySize = ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
+			Path filePath
+            	= Paths.get("/sys/fs/cgroup/memory", "memory.limit_in_bytes");
+			String content = "";
+			try
+			{
+				content = Files.readString(filePath);
+			}
+			catch (IOException e) {
+				e.printStackTrace();
+			}
+			long memorySize = Long.parseLong(content.trim());
 			optionsContents = optionsContents + Long.toString(memorySize/1024/8*3) + "k";
 		}
 		Path optionsFilePath = CRIUTestUtils.createOptionsFile("options", optionsContents);

@@ -93,14 +93,16 @@ echo "test output"
 cat testOutput;
 echo "restore ouptut"
 cat criuOutput
-THREADERROR=grep "Unable to create a thread" criuOutput
-THREADERROR2=grep "do not match expected" criuOutput
 echo "restore verbose"
 cat output.txt
-if [ -n "$THREADERROR" ]; then
+if grep -q "Unable to create a thread" criuOutput
+then
+    echo "reach thread error 1"
     exit 1
 fi
-if [ -n "$THREADERROR2" ]; then
+if grep -q "do not match expected" criuOutput 
+then
+    echo "reach thread error 2"
     exit 1
 fi
 # get the decimal representation of the current softmx value
