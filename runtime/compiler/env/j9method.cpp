@@ -677,7 +677,7 @@ char *
 TR_ResolvedJ9MethodBase::fieldOrStaticName(I_32 cpIndex, int32_t & len, TR_Memory * trMemory, TR_AllocationKind kind)
    {
    if (cpIndex == -1)
-      return "<internal name>";
+      return (char *)"<internal name>";
 
    J9ROMFieldRef * ref = (J9ROMFieldRef *) (&romCPBase()[cpIndex]);
    J9ROMNameAndSignature * nameAndSignature = J9ROMFIELDREF_NAMEANDSIGNATURE(ref);
@@ -709,7 +709,7 @@ TR_ResolvedJ9MethodBase::staticName(I_32 cpIndex, TR_Memory * m, TR_AllocationKi
 char *
 TR_ResolvedJ9MethodBase::fieldName(I_32 cpIndex, int32_t & len, TR_Memory * m, TR_AllocationKind kind)
    {
-   if (cpIndex < 0) return "<internal field>";
+   if (cpIndex < 0) return (char *)"<internal field>";
    return fieldOrStaticName(cpIndex, len, m, kind);
    }
 
@@ -3636,6 +3636,7 @@ void TR_ResolvedJ9Method::construct()
       {  TR::java_lang_invoke_VarHandle_getAndBitwiseXor          ,   21, "getAndBitwiseXor_impl",                 (int16_t)-1, "*"},
       {  TR::java_lang_invoke_VarHandle_getAndBitwiseXorAcquire   ,   28, "getAndBitwiseXorAcquire_impl",         (int16_t)-1, "*"},
       {  TR::java_lang_invoke_VarHandle_getAndBitwiseXorRelease   ,   28, "getAndBitwiseXorRelease_impl",         (int16_t)-1, "*"},
+      {x(TR::java_lang_invoke_VarHandle_asDirect                  ,       "asDirect",                             "()Ljava/lang/invoke/VarHandle;")},
       {  TR::unknownMethod}
       };
 
@@ -3680,10 +3681,12 @@ void TR_ResolvedJ9Method::construct()
 
    static X InvokersMethods[] =
       {
-      {TR::java_lang_invoke_Invokers_checkCustomized,            15,       "checkCustomized",             (int16_t)-1, "*"},
-      {TR::java_lang_invoke_Invokers_checkExactType,             14,       "checkExactType",              (int16_t)-1, "*"},
-      {TR::java_lang_invoke_Invokers_getCallSiteTarget,          17,       "getCallSiteTarget",           (int16_t)-1, "*"},
-      {TR::unknownMethod}
+      {  TR::java_lang_invoke_Invokers_checkCustomized,            15,     "checkCustomized",             (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_Invokers_checkExactType,             14,     "checkExactType",              (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_Invokers_getCallSiteTarget,          17,     "getCallSiteTarget",           (int16_t)-1, "*"},
+      {x(TR::java_lang_invoke_Invokers_directVarHandleTarget,              "directVarHandleTarget",       "(Ljava/lang/invoke/VarHandle;)Ljava/lang/invoke/VarHandle;")},
+      {x(TR::java_lang_invoke_Invokers_checkVarHandleGenericType,          "checkVarHandleGenericType",   "(Ljava/lang/invoke/VarHandle;Ljava/lang/invoke/VarHandle$AccessDescriptor;)Ljava/lang/invoke/MethodHandle;")},
+      {  TR::unknownMethod}
       };
 
    static X AsTypeHandleMethods[] =
@@ -4376,6 +4379,10 @@ void TR_ResolvedJ9Method::construct()
          {
          // Cases where multiple method names all map to the same RecognizedMethod
          //
+         if ((classNameLen == 13) && !strncmp(className, "java/util/Map", 13))
+            setRecognizedMethodInfo(TR::java_util_Map_all);
+         if ((classNameLen == 15) && !strncmp(className, "java/lang/Class", 15))
+            setRecognizedMethodInfo(TR::java_lang_Class_all);
          if ((classNameLen == 17) && !strncmp(className, "java/util/TreeMap", 17))
             setRecognizedMethodInfo(TR::java_util_TreeMap_all);
          else if ((classNameLen == 17) && !strncmp(className, "java/util/EnumMap", 17))
@@ -4391,14 +4398,32 @@ void TR_ResolvedJ9Method::construct()
             }
          else if ((classNameLen == 17) && !strncmp(className, "java/util/HashMap", 17))
              setRecognizedMethodInfo(TR::java_util_HashMap_all);
+         else if ((classNameLen == 17) && !strncmp(className, "java/util/TimSort", 17))
+             setRecognizedMethodInfo(TR::java_util_TimSort_all);
          else if ((classNameLen == 19) && !strncmp(className, "java/util/ArrayList", 19))
             setRecognizedMethodInfo(TR::java_util_ArrayList_all);
          else if ((classNameLen == 19) && !strncmp(className, "java/util/Hashtable", 19))
             setRecognizedMethodInfo(TR::java_util_Hashtable_all);
+         else if ((classNameLen == 20) && !strncmp(className, "java/util/LinkedList", 20))
+            setRecognizedMethodInfo(TR::java_util_LinkedList_all);
+         else if ((classNameLen == 20) && !strncmp(className, "java/util/ArrayDeque", 20))
+            setRecognizedMethodInfo(TR::java_util_ArrayDeque_all);
+         else if ((classNameLen == 21) && !strncmp(className, "java/util/WeakHashMap", 21))
+            setRecognizedMethodInfo(TR::java_util_WeakHashMap_all);
          else if ((classNameLen == 38) && !strncmp(className, "java/util/concurrent/ConcurrentHashMap", 38))
             setRecognizedMethodInfo(TR::java_util_concurrent_ConcurrentHashMap_all);
          else if ((classNameLen == 16) && !strncmp(className, "java/util/Vector", 16))
             setRecognizedMethodInfo(TR::java_util_Vector_all);
+         else if ((classNameLen == 22) && !strncmp(className, "java/util/stream/Nodes", 22))
+            setRecognizedMethodInfo(TR::java_util_stream_Nodes_all);
+         else if ((classNameLen == 23) && !strncmp(className, "java/util/LinkedHashMap", 23))
+            setRecognizedMethodInfo(TR::java_util_LinkedHashMap_all);
+         else if ((classNameLen == 23) && !strncmp(className, "java/util/regex/Pattern", 23))
+            setRecognizedMethodInfo(TR::java_util_regex_Pattern_all);
+         else if ((classNameLen == 25) && !strncmp(className, "java/util/IdentityHashMap", 25))
+            setRecognizedMethodInfo(TR::java_util_IdentityHashMap_all);
+         else if ((classNameLen == 27) && !strncmp(className, "java/util/ComparableTimSort", 27))
+            setRecognizedMethodInfo(TR::java_util_ComparableTimSort_all);
          else if ((classNameLen == 28) && !strncmp(className, "java/lang/invoke/ILGenMacros", 28))
             {
             if (!strncmp(name, "invokeExact_", 12))
@@ -4408,6 +4433,8 @@ void TR_ResolvedJ9Method::construct()
             else if (!strncmp(name, "last_", 5))
                setRecognizedMethodInfo(TR::java_lang_invoke_ILGenMacros_last);
             }
+         else if ((classNameLen == 28) && !strncmp(className, "java/util/AbstractCollection", 28))
+            setRecognizedMethodInfo(TR::java_util_AbstractCollection_all);
          else if ((classNameLen == 29) && !strncmp(className, "java/lang/invoke/MethodHandle", 29))
             {
             if (!strncmp(name, "asType", 6))
@@ -4434,11 +4461,6 @@ void TR_ResolvedJ9Method::construct()
             if (!strncmp(name, "invokeExact_thunkArchetype_", 27))
                setRecognizedMethodInfo(TR::java_lang_invoke_DirectHandle_invokeExact);
             }
-         else if ((classNameLen == 32) && !strncmp(className, "java/lang/invoke/InterfaceHandle", 32))
-            {
-            if (!strncmp(name, "invokeExact_thunkArchetype_", 27))
-               setRecognizedMethodInfo(TR::java_lang_invoke_InterfaceHandle_invokeExact);
-            }
          else if ((classNameLen == 30) && !strncmp(className, "java/lang/invoke/VirtualHandle", 30))
             {
             if (!strncmp(name, "virtualCall_", 12))
@@ -4454,6 +4476,15 @@ void TR_ResolvedJ9Method::construct()
                setRecognizedMethodInfo(TR::java_lang_invoke_ComputedCalls_dispatchVirtual);
             else if (!strncmp(name, "dispatchJ9Method_", 17))
                setRecognizedMethodInfo(TR::java_lang_invoke_ComputedCalls_dispatchJ9Method);
+            }
+         else if ((classNameLen == 30) && !strncmp(className, "java/util/ImmutableCollections", 30))
+            {
+            setRecognizedMethodInfo(TR::java_util_ImmutableCollections_all);
+            }
+         else if ((classNameLen == 32) && !strncmp(className, "java/lang/invoke/InterfaceHandle", 32))
+            {
+            if (!strncmp(name, "invokeExact_thunkArchetype_", 27))
+               setRecognizedMethodInfo(TR::java_lang_invoke_InterfaceHandle_invokeExact);
             }
          else if ((classNameLen >= 59 + 3 && classNameLen <= 59 + 7) && !strncmp(className, "java/lang/invoke/ArrayVarHandle$ArrayVarHandleOperations$Op", 59))
             {
@@ -7697,8 +7728,8 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             // Inspect source and target types and decide what to do
             //
             char sourceBuf[2], targetBuf[2];
-            char *sourceName = sourceBuf; char *sourceType = sourceBuf;
-            char *targetName = targetBuf; char *targetType = targetBuf;
+            const char *sourceName = sourceBuf; const char *sourceType = sourceBuf;
+            const char *targetName = targetBuf; const char *targetType = targetBuf;
             switch (sourceSig[0])
                {
                case 'Q':
@@ -8004,8 +8035,8 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
          int32_t i;
          int32_t permuteLength;
          TR::Node *originalArgs;
-         char * oldSignature;
-         char * newSignature;
+         char *oldSignature;
+         char *newSignature;
          TR::Node* extraArrayNode = NULL;
          TR::Node* extraL[5];
          if (rm == TR::java_lang_invoke_BruteArgumentMoverHandle_permuteArgs)
@@ -8028,7 +8059,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             // Do the server-side operations
             originalArgs = genNodeAndPopChildren(TR::icall, 1, placeholderWithDummySignature());
             oldSignature = originalArgs->getSymbolReference()->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod()->signatureChars();
-            newSignature = "()I";
+            newSignature = (char *)"()I";
             if (comp()->getOption(TR_TraceILGen))
                traceMsg(comp(), "  permuteArgs: oldSignature is %s\n", oldSignature);
             for (i=0; i < permuteLength; i++)
@@ -8110,7 +8141,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             // Push args while computing the result placeholder's signature
             //
             oldSignature = originalArgs->getSymbolReference()->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod()->signatureChars();
-            newSignature = "()I";
+            newSignature = (char *)"()I";
             permuteLength = fej9->getArrayLengthInElements(permuteArray);
             if (comp()->getOption(TR_TraceILGen))
                traceMsg(comp(), "  permuteArgs: oldSignature is %s\n", oldSignature);
@@ -8758,7 +8789,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
              placeholder->getAndDecChild(i);
              }
 
-         char * newSignature = "()I";
+         char *newSignature = (char *)"()I";
          // The rest of the stack should be the arg positions if there are any
          for (int i=0; i<numCombinerArgs; i++)
              {
@@ -8924,7 +8955,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
 
          // This is required beyond the scope of the stack memory region
          TR::Node *placeholder = NULL;
-         char * newSignature = "()I";
+         char *newSignature = (char *)"()I";
 
          {
          TR::StackMemoryRegion stackMemoryRegion(*comp()->trMemory());

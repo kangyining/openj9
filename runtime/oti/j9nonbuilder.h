@@ -4211,6 +4211,8 @@ typedef struct J9DelayedLockingOpertionsRecord {
 #define J9VM_CRIU_IS_THROW_ON_DELAYED_CHECKPOINT_ENABLED 0x10
 #define J9VM_CRIU_IS_PORTABLE_JVM_RESTORE_MODE 0x20
 #define J9VM_CRIU_ENABLE_CRIU_SEC_PROVIDER 0x40
+#define J9VM_CRAC_IS_CHECKPOINT_ENABLED 0x80
+#define J9VM_CRIU_SUPPORT_DEBUG_ON_RESTORE 0x100
 
 typedef struct J9CRIUCheckpointState {
 	U_32 flags;
@@ -4227,8 +4229,10 @@ typedef struct J9CRIUCheckpointState {
 	 * Only supports one Checkpoint, could be restored multiple times.
 	 */
 	I_64 checkpointRestoreTimeDelta;
-	I_64 lastRestoreTimeMillis;
+	I_64 lastRestoreTimeInNanoseconds;
+	I_64 processRestoreStartTimeInNanoseconds;
 	UDATA maxRetryForNotCheckpointSafe;
+	UDATA sleepMillisecondsForNotCheckpointSafe;
 	jclass criuJVMCheckpointExceptionClass;
 	jclass criuSystemCheckpointExceptionClass;
 	jclass criuJVMRestoreExceptionClass;
@@ -4255,6 +4259,9 @@ typedef struct J9CRIUCheckpointState {
 	struct J9VMInitArgs *restoreArgsList;
 	char *restoreArgsChars;
 	IDATA jucForkJoinPoolParallelismOffset;
+#if defined(J9VM_OPT_CRAC_SUPPORT)
+	char *cracCheckpointToDir;
+#endif /* defined(J9VM_OPT_CRAC_SUPPORT) */
 } J9CRIUCheckpointState;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
@@ -4466,6 +4473,7 @@ typedef struct J9MemoryManagerFunctions {
 	UDATA  ( *j9gc_concurrent_scavenger_enabled)(struct J9JavaVM *javaVM) ;
 	UDATA  ( *j9gc_software_read_barrier_enabled)(struct J9JavaVM *javaVM) ;
 	BOOLEAN  ( *j9gc_hot_reference_field_required)(struct J9JavaVM *javaVM) ;
+	BOOLEAN ( *j9gc_off_heap_allocation_enabled)(struct J9JavaVM *javaVM) ;
 	uint32_t  ( *j9gc_max_hot_field_list_length)(struct J9JavaVM *javaVM) ;
 #if defined(J9VM_GC_HEAP_CARD_TABLE)
 	UDATA  ( *j9gc_concurrent_getCardSize)(struct J9JavaVM *javaVM) ;
@@ -4891,7 +4899,7 @@ typedef struct J9InternalVMFunctions {
 	void  ( *rasStartDeferredThreads)(struct J9JavaVM* vm) ;
 	int  ( *initJVMRI)(struct J9JavaVM* vm) ;
 	int  ( *shutdownJVMRI)(struct J9JavaVM* vm) ;
-	IDATA  ( *getOwnedObjectMonitors)(struct J9VMThread *currentThread, struct J9VMThread *targetThread, struct J9ObjectMonitorInfo *info, IDATA infoLen) ;
+	IDATA  ( *getOwnedObjectMonitors)(struct J9VMThread *currentThread, struct J9VMThread *targetThread, struct J9ObjectMonitorInfo *info, IDATA infoLen, BOOLEAN reportErrors) ;
 #if !defined(J9VM_SIZE_SMALL_CODE)
 	void  ( *fieldIndexTableRemove)(struct J9JavaVM* javaVM, struct J9Class *ramClass) ;
 #endif /* J9VM_SIZE_SMALL_CODE */
@@ -5029,12 +5037,14 @@ typedef struct J9InternalVMFunctions {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	BOOLEAN (*jvmCheckpointHooks)(struct J9VMThread *currentThread);
 	BOOLEAN (*jvmRestoreHooks)(struct J9VMThread *currentThread);
+	BOOLEAN (*isCRaCorCRIUSupportEnabled)(struct J9VMThread *currentThread);
+	BOOLEAN (*isCRaCorCRIUSupportEnabled_VM)(struct J9JavaVM *vm);
 	BOOLEAN (*isCRIUSupportEnabled)(struct J9VMThread *currentThread);
-	BOOLEAN (*isCRIUSupportEnabled_VM)(struct J9JavaVM *vm);
 	BOOLEAN (*enableCRIUSecProvider)(struct J9VMThread *currentThread);
 	BOOLEAN (*isCheckpointAllowed)(struct J9VMThread *currentThread);
 	BOOLEAN (*isNonPortableRestoreMode)(struct J9VMThread *currentThread);
 	BOOLEAN (*isJVMInPortableRestoreMode)(struct J9VMThread *currentThread);
+	BOOLEAN (*isDebugOnRestoreEnabled)(struct J9VMThread *currentThread);
 	BOOLEAN (*runInternalJVMCheckpointHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runInternalJVMRestoreHooks)(struct J9VMThread *currentThread, const char **nlsMsgFormat);
 	BOOLEAN (*runDelayedLockRelatedOperations)(struct J9VMThread *currentThread);
@@ -5042,6 +5052,9 @@ typedef struct J9InternalVMFunctions {
 	void (*addInternalJVMClassIterationRestoreHook)(struct J9VMThread *currentThread, classIterationRestoreHookFunc hookFunc);
 	void (*setCRIUSingleThreadModeJVMCRIUException)(struct J9VMThread *vmThread, U_32 moduleName, U_32 messageNumber);
 	jobject (*getRestoreSystemProperites)(struct J9VMThread *currentThread);
+	BOOLEAN (*setupJNIFieldIDsAndCRIUAPI)(JNIEnv *env, jclass *currentExceptionClass, IDATA *systemReturnCode, const char **nlsMsgFormat);
+	void JNICALL (*criuCheckpointJVMImpl)(JNIEnv *env, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile,
+			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	j9object_t (*getClassNameString)(struct J9VMThread *currentThread, j9object_t classObject, jboolean internAndAssign);
 	j9object_t* (*getDefaultValueSlotAddress)(struct J9Class *clazz);
@@ -5916,6 +5929,7 @@ typedef struct J9JavaVM {
 	UDATA addModulesCount;
 	UDATA safePointState;
 	UDATA safePointResponseCount;
+	BOOLEAN alreadyHaveExclusive;
 	struct J9VMRuntimeStateListener vmRuntimeStateListener;
 #if defined(J9VM_INTERP_ATOMIC_FREE_JNI_USES_FLUSH)
 #if defined(J9UNIX) || defined(AIXPPC)
@@ -5992,6 +6006,7 @@ typedef struct J9JavaVM {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	omrthread_monitor_t delayedLockingOperationsMutex;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+	UDATA asyncGetCallTraceUsed;
 	U_32 compatibilityFlags;
 } J9JavaVM;
 

@@ -1429,7 +1429,7 @@ TR_J9ServerVM::getClassFlagsValue(TR_OpaqueClassBlock *clazz)
    }
 
 TR_OpaqueMethodBlock *
-TR_J9ServerVM::getMethodFromName(char *className, char *methodName, char *signature)
+TR_J9ServerVM::getMethodFromName(const char *className, const char *methodName, const char *signature)
    {
    JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
    stream->write(JITServer::MessageType::VM_getMethodFromName, std::string(className, strlen(className)),
@@ -1438,7 +1438,7 @@ TR_J9ServerVM::getMethodFromName(char *className, char *methodName, char *signat
    }
 
 TR_OpaqueMethodBlock *
-TR_J9ServerVM::getMethodFromClass(TR_OpaqueClassBlock *methodClass, char *methodName, char *signature, TR_OpaqueClassBlock *callingClass)
+TR_J9ServerVM::getMethodFromClass(TR_OpaqueClassBlock *methodClass, const char *methodName, const char *signature, TR_OpaqueClassBlock *callingClass)
    {
    JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
    stream->write(JITServer::MessageType::VM_getMethodFromClass, methodClass, std::string(methodName, strlen(methodName)),
@@ -2384,10 +2384,26 @@ TR_J9ServerVM::getVMIndexOffset()
    vmInfo->_vmindexOffset = std::get<0>(stream->read<UDATA>());
    return vmInfo->_vmindexOffset;
    }
+
+TR::KnownObjectTable::Index
+TR_J9ServerVM::getMethodHandleTableEntryIndex(TR::Compilation *comp, TR::KnownObjectTable::Index vhIndex, TR::KnownObjectTable::Index adIndex)
+   {
+   TR::KnownObjectTable *knot = comp->getKnownObjectTable();
+   if (!knot) return TR::KnownObjectTable::UNKNOWN;
+
+   JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
+   stream->write(JITServer::MessageType::VM_getMethodHandleTableEntryIndex, vhIndex, adIndex);
+   auto recv = stream->read<TR::KnownObjectTable::Index, uintptr_t *>();
+
+   TR::KnownObjectTable::Index mhIndex = std::get<0>(recv);
+   knot->updateKnownObjectTableAtServer(mhIndex, std::get<1>(recv));
+   return mhIndex;
+   }
+
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 TR::KnownObjectTable::Index
-TR_J9ServerVM::getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(TR::Compilation *comp, TR::KnownObjectTable::Index mhIndex, char *fieldName)
+TR_J9ServerVM::getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(TR::Compilation *comp, TR::KnownObjectTable::Index mhIndex, const char *fieldName)
    {
    JITServer::ServerStream *stream = _compInfoPT->getMethodBeingCompiled()->_stream;
    stream->write(JITServer::MessageType::VM_getMemberNameFieldKnotIndexFromMethodHandleKnotIndex, mhIndex, std::string(fieldName));
@@ -2532,7 +2548,7 @@ TR_J9SharedCacheServerVM::isClassLibraryMethod(TR_OpaqueMethodBlock *method, boo
    }
 
 TR_OpaqueMethodBlock *
-TR_J9SharedCacheServerVM::getMethodFromClass(TR_OpaqueClassBlock * methodClass, char * methodName, char * signature, TR_OpaqueClassBlock *callingClass)
+TR_J9SharedCacheServerVM::getMethodFromClass(TR_OpaqueClassBlock *methodClass, const char *methodName, const char *signature, TR_OpaqueClassBlock *callingClass)
    {
    TR_OpaqueMethodBlock* omb = TR_J9ServerVM::getMethodFromClass(methodClass, methodName, signature, callingClass);
    if (omb)
@@ -3269,7 +3285,7 @@ TR_J9SharedCacheServerVM::getClassFromNewArrayType(int32_t arrayType)
    }
 
 TR_OpaqueMethodBlock *
-TR_J9SharedCacheServerVM::getMethodFromName(char *className, char *methodName, char *signature)
+TR_J9SharedCacheServerVM::getMethodFromName(const char *className, const char *methodName, const char *signature)
    {
    // The TR_J9VM version of this method implicitly creates SVM record during AOT compilation.
    // The TR_J9ServerVM version doesn't account for that, so need to override it

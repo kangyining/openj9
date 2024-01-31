@@ -21,10 +21,12 @@
  *******************************************************************************/
 package org.openj9.test.util;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Utility class to check time.
@@ -64,7 +66,7 @@ public class TimeUtilities {
 			result = false;
 			System.out.println("FAILED: " + testName + " elapsedMillisTime (" + elapsedMillisTime
 					+ "ms) should NOT be less than minElapsedMillisTime (" + minElapsedMillisTime + "ms)");
-		} else if (elapsedMillisTime > maxElapsedMillisTime) {
+		} else if ((maxElapsedMillisTime > 0) && (elapsedMillisTime > maxElapsedMillisTime)) {
 			result = false;
 			System.out.println("FAILED: " + testName + " elapsedMillisTime (" + elapsedMillisTime
 					+ "ms) should NOT be greater than maxElapsedMillisTime (" + maxElapsedMillisTime + "ms)");
@@ -73,7 +75,7 @@ public class TimeUtilities {
 			result = false;
 			System.out.println("FAILED: " + testName + " elapsedNanoTimeInMillis (" + elapsedNanoTimeInMillis
 					+ "ms) should NOT be less than minElapsedNanoTimeInMillis (" + minElapsedNanoTimeInMillis + "ms)");
-		} else if (elapsedNanoTimeInMillis > maxElapsedNanoTimeInMillis) {
+		} else if ((maxElapsedNanoTimeInMillis > 0) && (elapsedNanoTimeInMillis > maxElapsedNanoTimeInMillis)) {
 			result = false;
 			System.out.println("FAILED: " + testName + " elapsedNanoTimeInMillis (" + elapsedNanoTimeInMillis
 					+ "ms) should NOT be greater than maxElapsedNanoTimeInMillis (" + maxElapsedNanoTimeInMillis
@@ -82,6 +84,18 @@ public class TimeUtilities {
 		showThreadCurrentTime(testName + " checkElapseTime ends");
 
 		return result;
+	}
+
+	// The maximum elapsed time is not always guaranteed on some platforms.
+	// https://github.com/eclipse-openj9/openj9/issues/18487#issuecomment-1829111868
+	public static boolean checkElapseTime(String testName, long startMillisTime, long startNanoTime,
+			long minElapsedMillisTime, long minElapsedNanoTimeInMillis) {
+		return checkElapseTime(testName, startMillisTime, startNanoTime, minElapsedMillisTime, 0, minElapsedNanoTimeInMillis, 0);
+	}
+
+	public static long getCurrentTimeInNanoseconds() {
+		Instant instant = Instant.now();
+		return TimeUnit.SECONDS.toNanos(instant.getEpochSecond()) + instant.getNano();
 	}
 
 	private volatile boolean tasksPassed = true;
@@ -140,8 +154,7 @@ public class TimeUtilities {
 
 		public void run() {
 			taskExecuted++;
-			if (!checkElapseTime(testName, startMillisTime, startNanoTime, minElapsedMillisTime, maxElapsedMillisTime,
-					minElapsedNanoTimeInMillis, maxElapsedNanoTimeInMillis)) {
+			if (!checkElapseTime(testName, startMillisTime, startNanoTime, minElapsedMillisTime, minElapsedNanoTimeInMillis)) {
 				tasksPassed = false;
 			}
 			taskRunning--;

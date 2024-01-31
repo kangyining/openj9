@@ -887,7 +887,7 @@ TR::CompilationInfoPerThread::openRTLogFile()
 
       if (!truncated)
          {
-         _rtLogFile = fileOpen(TR::Options::getAOTCmdLineOptions(), jitConfig, fn, "wb", true);
+         _rtLogFile = fileOpen(TR::Options::getAOTCmdLineOptions(), jitConfig, fn, const_cast<char *>("wb"), true);
          }
       else
          {
@@ -986,7 +986,7 @@ TR::CompilationInfoPerThread::waitForGCCycleMonitor(bool threadHasVMAccess)
 #endif
    }
 
-extern char *compilationErrorNames[]; // defined in rossa.cpp
+extern const char *compilationErrorNames[]; // defined in rossa.cpp
 
 void
 TR::CompilationInfoPerThreadBase::setCompilationThreadState(CompilationThreadState v)
@@ -1206,8 +1206,6 @@ TR::CompilationInfo::CompilationInfo(J9JITConfig *jitConfig) :
       = J9_EVENT_IS_HOOKED(jitConfig->javaVM->hookInterface, J9HOOK_VM_EXCEPTION_THROW)
         || J9_EVENT_IS_RESERVED(jitConfig->javaVM->hookInterface, J9HOOK_VM_EXCEPTION_THROW);
    _vmExceptionEventsHooked = exceptionCatchEventHooked || exceptionThrowEventHooked;
-
-   _resetStartAndElapsedTime = false;
 
 #if defined(J9VM_OPT_JITSERVER)
    _canPerformRemoteCompilationInCRIUMode = false;
@@ -1709,7 +1707,7 @@ TR_Stats statBudgetEpoch("Budget len at begining of epoch");
 TR_Stats statBudgetSmallLag("Budget/comp when smallLag");
 TR_Stats statBudgetMediumLag("Budget/comp when mediumLag");
 TR_Stats statEpochLength("Epoch lengh (ms)");
-char *eventNames[]={"SyncReq", "SmallLag", "LargeLag", "Medium-NoBudget", "Medium-highBudget", "Medium-LowBudget", "Medium-Idle"};
+const char *eventNames[]={"SyncReq", "SmallLag", "LargeLag", "Medium-NoBudget", "Medium-highBudget", "Medium-LowBudget", "Medium-Idle"};
 TR_StatsEvents<7> statEvents("Scenarios", eventNames, 0);
 char *priorityName[]={"High","Normal"};
 TR_StatsEvents<2> statLowPriority("Medium-lowBudget-priority",priorityName,0);
@@ -2901,6 +2899,122 @@ bool TR::CompilationInfo::suspendCompThreadsForCheckpoint(J9VMThread *vmThread)
    return true;
    }
 
+bool
+TR::CompilationInfo::suspendJITThreadsForCheckpoint(J9VMThread *vmThread)
+   {
+   // Suspend compilation threads for checkpoint
+   if (!suspendCompThreadsForCheckpoint(vmThread))
+      return false;
+
+   // Suspend Sampler Thread
+   if (_jitConfig->samplerMonitor)
+      {
+      j9thread_monitor_enter(_jitConfig->samplerMonitor);
+      j9thread_interrupt(_jitConfig->samplerThread);
+
+      // Determine whether to wait on the CR Monitor.
+      //
+      // Note, this thread releases the sampler monitor and then
+      // acquires the CR monitor inside releaseCompMonitorUntilNotifiedOnCRMonitor.
+      while (!shouldCheckpointBeInterrupted()
+             && getSamplingThreadLifetimeState() != TR::CompilationInfo::SAMPLE_THR_SUSPENDED)
+         {
+         j9thread_monitor_exit(_jitConfig->samplerMonitor);
+         releaseCompMonitorUntilNotifiedOnCRMonitor(vmThread);
+         j9thread_monitor_enter(_jitConfig->samplerMonitor);
+         }
+
+      j9thread_monitor_exit(_jitConfig->samplerMonitor);
+      }
+
+   // Suspend IProfiler Thread
+   TR_IProfiler *iProfiler = TR_J9VMBase::get(_jitConfig, NULL)->getIProfiler();
+   if (iProfiler && iProfiler->getIProfilerMonitor())
+      {
+      iProfiler->getIProfilerMonitor()->enter();
+
+      TR_ASSERT_FATAL(iProfiler->getIProfilerThreadLifetimeState() != TR_IProfiler::IPROF_THR_SUSPENDED,
+                      "IProfiler Thread should not already be in state IPROF_THR_SUSPENDED.\n");
+
+      // Don't change the state if the JVM is currently shutting down.
+      if (iProfiler->getIProfilerThreadLifetimeState() != TR_IProfiler::IPROF_THR_STOPPING)
+         iProfiler->setIProfilerThreadLifetimeState(TR_IProfiler::IPROF_THR_SUSPENDING);
+
+      // During shutdown, both the IProfiler Thread and the Shutdown Thread could be
+      // waiting on the IProfiler Monitor, so notifyAll so that the IProfiler Thread
+      // wakes up.
+      iProfiler->getIProfilerMonitor()->notifyAll();
+
+      // Determine whether to wait on the CR Monitor.
+      //
+      // Note, this thread releases the iprofiler monitor and then
+      // acquires the CR monitor inside releaseCompMonitorUntilNotifiedOnCRMonitor.
+      while (!shouldCheckpointBeInterrupted()
+             && iProfiler->getIProfilerThreadLifetimeState() != TR_IProfiler::IPROF_THR_SUSPENDED)
+         {
+         iProfiler->getIProfilerMonitor()->exit();
+         releaseCompMonitorUntilNotifiedOnCRMonitor(vmThread);
+         iProfiler->getIProfilerMonitor()->enter();
+         }
+
+      iProfiler->getIProfilerMonitor()->exit();
+      }
+
+   return !shouldCheckpointBeInterrupted();
+   }
+
+void
+TR::CompilationInfo::resumeJITThreadsForRestore(J9VMThread *vmThread)
+   {
+   // Resume suspended IProfiler Thread
+   TR_IProfiler *iProfiler = TR_J9VMBase::get(_jitConfig, NULL)->getIProfiler();
+   if (iProfiler && iProfiler->getIProfilerMonitor())
+      {
+      iProfiler->getIProfilerMonitor()->enter();
+      iProfiler->setIProfilerThreadLifetimeState(TR_IProfiler::IPROF_THR_RESUMING);
+      iProfiler->getIProfilerMonitor()->notifyAll();
+      iProfiler->getIProfilerMonitor()->exit();
+      }
+
+   // Resume suspended Sampler Thread
+   if (_jitConfig->samplerMonitor)
+      {
+      j9thread_monitor_enter(_jitConfig->samplerMonitor);
+      setSamplingThreadLifetimeState(TR::CompilationInfo::SAMPLE_THR_RESUMING);
+      j9thread_monitor_notify_all(_jitConfig->samplerMonitor);
+      j9thread_monitor_exit(_jitConfig->samplerMonitor);
+      }
+
+   // Resume suspended compilation threads.
+   resumeCompilationThread();
+   }
+
+/* Post-restore, reset the start time. While the Checkpoint phase is
+ * conceptually part of building the application, in order to ensure
+ * consistency with parts of the compiler that memoize elapsd time,
+ * the start time is reset to pretend like the JVM started
+ * persistentInfo->getElapsedTime() milliseconds ago. This will impact
+ * options such as -XsamplingExpirationTime. However, such an option
+ * may not make sense in the context of checkpoint/restore.
+ */
+void
+TR::CompilationInfo::resetStartTime()
+   {
+   PORT_ACCESS_FROM_JAVAVM(jitConfig->javaVM);
+   TR::PersistentInfo *persistentInfo = getPersistentInfo();
+
+   if (TR::Options::isAnyVerboseOptionSet())
+      TR_VerboseLog::writeLineLocked(TR_Vlog_CHECKPOINT_RESTORE, "Start and elapsed time: startTime=%6u, elapsedTime=%6u",
+                                       (uint32_t)persistentInfo->getStartTime(), (uint32_t)persistentInfo->getElapsedTime());
+
+   uint64_t crtTime = j9time_current_time_millis() - persistentInfo->getElapsedTime();
+   persistentInfo->setStartTime(crtTime);
+
+   if (TR::Options::isAnyVerboseOptionSet())
+      TR_VerboseLog::writeLineLocked(TR_Vlog_CHECKPOINT_RESTORE, "Reset start and elapsed time: startTime=%6u, elapsedTime=%6u",
+                                       (uint32_t)persistentInfo->getStartTime(), (uint32_t)persistentInfo->getElapsedTime());
+   }
+
 void TR::CompilationInfo::prepareForCheckpoint()
    {
    J9JavaVM   *vm       = _jitConfig->javaVM;
@@ -2933,8 +3047,8 @@ void TR::CompilationInfo::prepareForCheckpoint()
       if (!compileMethodsForCheckpoint(vmThread))
          return;
 
-   // Suspend compilation threads for checkpoint
-   if (!suspendCompThreadsForCheckpoint(vmThread))
+   // Suspend JIT threads for checkpoint
+   if (!suspendJITThreadsForCheckpoint(vmThread))
       return;
 
 #if defined(J9VM_OPT_JITSERVER)
@@ -2967,9 +3081,6 @@ void TR::CompilationInfo::prepareForRestore()
    if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerboseCheckpointRestore))
       TR_VerboseLog::writeLineLocked(TR_Vlog_CHECKPOINT_RESTORE, "Preparing for restore");
 
-   // Inform the Sampler Thread to reset the start and elapsed time it maintains
-   setResetStartAndElapsedTime(true);
-
    // Process the post-restore options
    J9::OptionsPostRestore::processOptionsPostRestore(vmThread, _jitConfig, this);
 
@@ -2981,8 +3092,11 @@ void TR::CompilationInfo::prepareForRestore()
    // Reset the checkpoint in progress flag.
    resetCheckpointInProgress();
 
-   // Resume suspended compilation threads.
-   resumeCompilationThread();
+   // Reset the start time.
+   resetStartTime();
+
+   // Resume JIT threads.
+   resumeJITThreadsForRestore(vmThread);
    }
 
    // Check if there is no swap memory post restore
@@ -9149,20 +9263,32 @@ TR::CompilationInfoPerThreadBase::wrappedCompile(J9PortLibrary *portLib, void * 
                   {
                   options->setOption(TR_DisableStoreSinking);
                   }
-               // On x86, disable idiomRecognition for compilation at warm or below to save compilation time
-               // However, don't disable it for AOT compilations or precheckpoint or under -Xtune:throughput
-               if (TR::Compiler->target.cpu.isX86() &&
-                   options->getOptLevel() <= warm &&
-                   !vm->isAOT_DEPRECATED_DO_NOT_USE() &&
-#if defined(J9VM_OPT_CRIU_SUPPORT)
-                  !(jitConfig->javaVM->internalVMFunctions->isNonPortableRestoreMode(vmThread) &&
-                    jitConfig->javaVM->internalVMFunctions->isCheckpointAllowed(vmThread)) &&
-#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
-                   TR::Options::getAggressivityLevel() != TR::Options::TR_AggresivenessLevel::AGGRESSIVE_THROUGHPUT)
+               // Some optimizations (like idiomRecognition) can be avoided for compilations
+               // at warm or below to save compilation time
+               // However, we should perform such expensive opts for AOT compilations or precheckpoint or under -Xtune:throughput
+               if (options->getOptLevel() <= warm)
                   {
-                  static char *enableIdiomRecognitionAtWarm = feGetEnv("TR_EnableIdiomRecognitionAtWarm");
-                  if (!enableIdiomRecognitionAtWarm)
-                     options->setDisabled(OMR::idiomRecognition, true);
+                  static char *forceExpensiveOptsAtWarm = feGetEnv("TR_EnableExpensiveOptsAtWarm");
+                  bool enableExpensiveOptsAtWarm = forceExpensiveOptsAtWarm || // override
+                          vm->isAOT_DEPRECATED_DO_NOT_USE() || // AOT compilations
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+                          (jitConfig->javaVM->internalVMFunctions->isNonPortableRestoreMode(vmThread) &&
+                          jitConfig->javaVM->internalVMFunctions->isCheckpointAllowed(vmThread)) ||
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+                          TR::Options::getAggressivityLevel() == TR::Options::TR_AggresivenessLevel::AGGRESSIVE_THROUGHPUT;
+                  if (enableExpensiveOptsAtWarm)
+                     {
+                     options->setOption(TR_NotCompileTimeSensitive);
+                     }
+                  else
+                     {
+                     if (TR::Compiler->target.cpu.isX86())
+                        {
+                        static char *enableIdiomRecognitionAtWarm = feGetEnv("TR_EnableIdiomRecognitionAtWarm");
+                        if (!enableIdiomRecognitionAtWarm)
+                           options->setDisabled(OMR::idiomRecognition, true);
+                        }
+                     }
                   }
                } // end of compilation strategy tweaks for Java
 
@@ -11690,7 +11816,7 @@ void TR::CompilationInfo::printCompQueue()
 
 #if DEBUG
 void
-TR::CompilationInfo::debugPrint(char * debugString)
+TR::CompilationInfo::debugPrint(const char *debugString)
    {
    if (!_traceCompiling)
       return;
@@ -11698,7 +11824,7 @@ TR::CompilationInfo::debugPrint(char * debugString)
    }
 
 void
-TR::CompilationInfo::debugPrint(J9VMThread * vmThread, char * debugString)
+TR::CompilationInfo::debugPrint(J9VMThread *vmThread, const char *debugString)
    {
    if (!_traceCompiling)
       return;
@@ -11707,7 +11833,7 @@ TR::CompilationInfo::debugPrint(J9VMThread * vmThread, char * debugString)
    }
 
 void
-TR::CompilationInfo::debugPrint(char * debugString, intptr_t val)
+TR::CompilationInfo::debugPrint(const char *debugString, intptr_t val)
    {
    if (!_traceCompiling)
       return;
@@ -11715,7 +11841,7 @@ TR::CompilationInfo::debugPrint(char * debugString, intptr_t val)
    }
 
 void
-TR::CompilationInfo::debugPrint(J9VMThread * vmThread, char * debugString, IDATA val)
+TR::CompilationInfo::debugPrint(J9VMThread *vmThread, const char *debugString, IDATA val)
    {
    if (!_traceCompiling)
       return;
@@ -11724,7 +11850,7 @@ TR::CompilationInfo::debugPrint(J9VMThread * vmThread, char * debugString, IDATA
    }
 
 void
-TR::CompilationInfo::debugPrint(J9Method * method)
+TR::CompilationInfo::debugPrint(J9Method *method)
    {
    if (!_traceCompiling)
       return;
@@ -11743,7 +11869,7 @@ TR::CompilationInfo::debugPrint(J9Method * method)
    }
 
 void
-TR::CompilationInfo::debugPrint(char * debugString, J9Method * method)
+TR::CompilationInfo::debugPrint(const char *debugString, J9Method *method)
    {
    if (!_traceCompiling)
       return;
@@ -11753,7 +11879,7 @@ TR::CompilationInfo::debugPrint(char * debugString, J9Method * method)
    }
 
 void
-TR::CompilationInfo::debugPrint(char * debugString, TR::IlGeneratorMethodDetails & details, J9VMThread * vmThread)
+TR::CompilationInfo::debugPrint(const char *debugString, TR::IlGeneratorMethodDetails & details, J9VMThread *vmThread)
    {
    if (!_traceCompiling)
       return;
@@ -11776,7 +11902,7 @@ TR::CompilationInfo::debugPrint(char * debugString, TR::IlGeneratorMethodDetails
    }
 
 void
-TR::CompilationInfo::debugPrint(J9VMThread * vmThread, char * msg, TR_MethodToBeCompiled *entry)
+TR::CompilationInfo::debugPrint(J9VMThread *vmThread, const char *msg, TR_MethodToBeCompiled *entry)
    {
    if (!_traceCompiling)
       return;
@@ -12234,8 +12360,11 @@ TR_LowPriorityCompQueue::TR_LowPriorityCompQueue()
    : _firstLPQentry(NULL), _lastLPQentry(NULL), _sizeLPQ(0), _LPQWeight(0),
      _trackingEnabled(false), _spine(NULL), _STAT_compReqQueuedByIProfiler(0), _STAT_conflict(0),
      _STAT_staleScrubbed(0), _STAT_bypass(0), _STAT_compReqQueuedByJIT(0), _STAT_LPQcompFromIprofiler(0),
-     _STAT_LPQcompFromInterpreter(0), _STAT_LPQcompUpgrade(0), _STAT_compReqQueuedByInterpreter(0),
-     _STAT_numFailedToEnqueueInLPQ(0)
+     _STAT_LPQcompFromInterpreter(0), _STAT_LPQcompUpgrade(0),
+#if defined(J9VM_OPT_JITSERVER)
+      _STAT_compReqQueuedByJITServer(0), _STAT_LPQcompServerUnavailable(0),
+#endif /* defined(J9VM_OPT_JITSERVER) */
+     _STAT_compReqQueuedByInterpreter(0), _STAT_numFailedToEnqueueInLPQ(0)
    {
    }
 
@@ -12492,6 +12621,10 @@ void TR_LowPriorityCompQueue::incStatsCompFromLPQ(uint8_t reason)
          _STAT_LPQcompFromInterpreter++; break;
       case TR_MethodToBeCompiled::REASON_UPGRADE:
          _STAT_LPQcompUpgrade++; break;
+#if defined(J9VM_OPT_JITSERVER)
+      case TR_MethodToBeCompiled::REASON_SERVER_UNAVAILABLE:
+         _STAT_LPQcompServerUnavailable++; break;
+#endif /* defined (J9VM_OPT_JITSERVER) */
       default:
          TR_ASSERT(false, "No other known reason for LPQ compilations\n");
       }
@@ -12506,6 +12639,10 @@ void TR_LowPriorityCompQueue::incStatsReqQueuedToLPQ(uint8_t reason)
          _STAT_compReqQueuedByInterpreter++; break;
       case TR_MethodToBeCompiled::REASON_UPGRADE:
          _STAT_compReqQueuedByJIT++; break;
+#if defined(J9VM_OPT_JITSERVER)
+      case TR_MethodToBeCompiled::REASON_SERVER_UNAVAILABLE:
+         _STAT_compReqQueuedByJITServer++; break;
+#endif /* defined (J9VM_OPT_JITSERVER) */
       default:
          TR_ASSERT(false, "No other known reason for LPQ compilations\n");
       }
@@ -12514,13 +12651,21 @@ void TR_LowPriorityCompQueue::incStatsReqQueuedToLPQ(uint8_t reason)
 void TR_LowPriorityCompQueue::printStats() const
    {
    fprintf(stderr, "Stats for LPQ:\n");
+#if defined(J9VM_OPT_JITSERVER)
+   fprintf(stderr, "   Requests for LPQ = %4u (Sources: IProfiler=%3u Interpreter=%3u JIT=%3u JITServer=%3u)\n",
+      _STAT_compReqQueuedByIProfiler + _STAT_compReqQueuedByInterpreter + _STAT_compReqQueuedByJIT + _STAT_compReqQueuedByJITServer,
+      _STAT_compReqQueuedByIProfiler, _STAT_compReqQueuedByInterpreter, _STAT_compReqQueuedByJIT, _STAT_compReqQueuedByJITServer);
+   fprintf(stderr, "   Comps.  from LPQ = %4u (Sources: IProfiler=%3u Interpreter=%3u JIT=%3u JITServer=%3u)\n",
+      _STAT_LPQcompFromIprofiler + _STAT_LPQcompFromInterpreter + _STAT_LPQcompUpgrade + _STAT_LPQcompServerUnavailable,
+      _STAT_LPQcompFromIprofiler, _STAT_LPQcompFromInterpreter, _STAT_LPQcompUpgrade, _STAT_LPQcompServerUnavailable);
+#else
    fprintf(stderr, "   Requests for LPQ = %4u (Sources: IProfiler=%3u Interpreter=%3u JIT=%3u)\n",
       _STAT_compReqQueuedByIProfiler + _STAT_compReqQueuedByInterpreter + _STAT_compReqQueuedByJIT,
       _STAT_compReqQueuedByIProfiler, _STAT_compReqQueuedByInterpreter, _STAT_compReqQueuedByJIT);
    fprintf(stderr, "   Comps.  from LPQ = %4u (Sources: IProfiler=%3u Interpreter=%3u JIT=%3u)\n",
       _STAT_LPQcompFromIprofiler + _STAT_LPQcompFromInterpreter + _STAT_LPQcompUpgrade,
       _STAT_LPQcompFromIprofiler, _STAT_LPQcompFromInterpreter, _STAT_LPQcompUpgrade);
-
+#endif /* defined(J9VM_OPT_JITSERVER) */
    fprintf(stderr, "   Conflicts        = %4u (tried to cache j9method that didn't have space)\n", _STAT_conflict);
    fprintf(stderr, "   Stale entries    = %4u\n", _STAT_staleScrubbed); // we want very few of these, hopefully 0
    fprintf(stderr, "   Bypass ocurrences= %4u (normal comp req hapened before the fast LPQ comp req)\n", _STAT_bypass);

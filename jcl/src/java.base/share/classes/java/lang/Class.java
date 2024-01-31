@@ -1262,7 +1262,7 @@ List<Method> getDeclaredPublicMethods(String name, Class<?>... parameterTypes) {
 	}
 	try {
 		methodList = new ArrayList<>();
-		getMethodHelper(false, true, methodList, name, parameterTypes);
+		getMethodHelper(false, true, true, methodList, name, parameterTypes);
 	} catch (NoSuchMethodException e) {
 		// no NoSuchMethodException expected
 	}
@@ -1362,7 +1362,7 @@ public Method getDeclaredMethod(String name, Class<?>... parameterTypes) throws 
 		ClassLoader callerClassLoader = ClassLoader.getStackClassLoader(1);
 		checkMemberAccess(security, callerClassLoader, Member.DECLARED);
 	}
-	return getMethodHelper(true, true, null, name, parameterTypes);
+	return getMethodHelper(true, true, false, null, name, parameterTypes);
 }
 
 /**
@@ -1687,7 +1687,7 @@ public Method getMethod(String name, Class<?>... parameterTypes) throws NoSuchMe
 		ClassLoader callerClassLoader = ClassLoader.getStackClassLoader(1);
 		checkMemberAccess(security, callerClassLoader, Member.PUBLIC);
 	}
-	return getMethodHelper(true, false, null, name, parameterTypes);
+	return getMethodHelper(true, false, true, null, name, parameterTypes);
 }
 
 /**
@@ -1700,11 +1700,13 @@ private Method throwExceptionOrReturnNull(boolean throwException, String name, C
 		return null;
 	}
 }
+
 /**
  * Helper method for
  *	public Method getDeclaredMethod(String name, Class<?>... parameterTypes)
  *	public Method getMethod(String name, Class<?>... parameterTypes)
  *	List<Method> getDeclaredPublicMethods(String name, Class<?>... parameterTypes)
+ *	Method findMethod(boolean publicOnly, String methodName, Class<?>... parameterTypes)
  * without going thorough security checking
  *
  * @param	throwException boolean
@@ -1713,24 +1715,27 @@ private Method throwExceptionOrReturnNull(boolean throwException, String name, C
  * @param	forDeclaredMethod boolean
  *				true - for getDeclaredMethod(String name, Class<?>... parameterTypes)
  *						& getDeclaredPublicMethods(String name, Class<?>... parameterTypes);
- *				false - for getMethod(String name, Class<?>... parameterTypes);
+ *				false - for getMethod(String name, Class<?>... parameterTypes)
+ *						& findMethod(boolean publicOnly, String methodName, Class<?>... parameterTypes);
  * @param	name String					the name of the method
  * @param	parameterTypes Class<?>[]	the types of the arguments
  * @param	methodList List<Method>		a list to store the methods described by the arguments
  * 										for getDeclaredPublicMethods()
- * 										or null for getDeclaredMethod() & getMethod()
+ * 										or null for getDeclaredMethod(), getMethod() & findMethod()
+ * @param	publicOnly boolean			true - only search public methods
+ * 										false - search all methods
  * @return	Method						the method described by the arguments.
  * @throws	NoSuchMethodException		if the method could not be found.
  */
 @CallerSensitive
 Method getMethodHelper(
-	boolean throwException, boolean forDeclaredMethod, List<Method> methodList, String name, Class<?>... parameterTypes)
+	boolean throwException, boolean forDeclaredMethod, boolean publicOnly, List<Method> methodList, String name, Class<?>... parameterTypes)
 	throws NoSuchMethodException {
 	Method result;
 	Method bestCandidate;
 	String strSig;
 	boolean candidateFromInterface = false;
-	
+
 	/*[PR CMVC 114820, CMVC 115873, CMVC 116166] add reflection cache */
 	if (parameterTypes == null) {
 		parameterTypes = EmptyParameters;
@@ -1738,10 +1743,16 @@ Method getMethodHelper(
 	if (methodList == null) {
 		// getDeclaredPublicMethods() has to go through all methods anyway
 		Method cachedMethod = lookupCachedMethod(name, parameterTypes);
-		if ((cachedMethod != null) 
-			&& ((forDeclaredMethod && (cachedMethod.getDeclaringClass() == this))
-			|| (!forDeclaredMethod && Modifier.isPublic(cachedMethod.getModifiers())))) {
-			return cachedMethod;
+		if (cachedMethod != null) {
+			if (forDeclaredMethod) {
+				if (cachedMethod.getDeclaringClass() == this) {
+					return cachedMethod;
+				}
+			} else {
+				if (!publicOnly || Modifier.isPublic(cachedMethod.getModifiers())) {
+					return cachedMethod;
+				}
+			}
 		}
 	}
 
@@ -1782,7 +1793,7 @@ Method getMethodHelper(
 			}
 		}
 	}
-	
+
 	if (result == null) {
 		return throwExceptionOrReturnNull(throwException, name, parameterTypes);
 	}
@@ -1807,7 +1818,8 @@ Method getMethodHelper(
 			}
 		}
 	}
-	if ((methodList != null) && ((result.getModifiers() & Modifier.PUBLIC) != 0)) {
+	boolean publicMethodInitialResult = Modifier.isPublic(result.getModifiers());
+	if ((methodList != null) && publicMethodInitialResult) {
 		methodList.add(result);
 	}
 	
@@ -1824,6 +1836,7 @@ Method getMethodHelper(
 	 * Otherwise, the result method is chosen arbitrarily from specific methods.
 	 */
 	bestCandidate = result;
+	boolean initialResultShouldBeReplaced = !forDeclaredMethod && publicOnly && !publicMethodInitialResult;
 	if (!candidateFromInterface) {
 		Class<?> declaringClass = forDeclaredMethod ? this : result.getDeclaringClass();
 		while (true) {
@@ -1831,11 +1844,15 @@ Method getMethodHelper(
 			if (result == null) {
 				break;
 			}
-			boolean publicMethod = ((result.getModifiers() & Modifier.PUBLIC) != 0);
+			boolean publicMethod = Modifier.isPublic(result.getModifiers());
 			if ((methodList != null) && publicMethod) {
 				methodList.add(result);
 			}
-			if (forDeclaredMethod || publicMethod) {
+			if (publicMethod && initialResultShouldBeReplaced) {
+				// Current result is a public method to be searched but the initial result wasn't.
+				bestCandidate = result;
+				initialResultShouldBeReplaced = false;
+			} else if (forDeclaredMethod || publicMethod || !publicOnly) {
 				// bestCandidate and result have same declaringClass.
 				Class<?> candidateRetType = bestCandidate.getReturnType();
 				Class<?> resultRetType = result.getReturnType();
@@ -1845,7 +1862,12 @@ Method getMethodHelper(
 			}
 		}
 	}
-	return cacheMethod(bestCandidate);
+	if (initialResultShouldBeReplaced) {
+		// The initial result is not a public method to be searched, and no other public methods found.
+		return null;
+	} else {
+		return cacheMethod(bestCandidate);
+	}
 }
 
 /**
@@ -4078,11 +4100,11 @@ private native String getSimpleNameImpl();
  * @see #isAnonymousClass()
  */
 public String getSimpleName() {
-/*[IF JAVA_SPEC_VERSION >= 21]*/
+/*[IF JAVA_SPEC_VERSION == 21]*/
 	if (isUnnamedClass()) {
 		return "";
 	}
-/*[ENDIF] JAVA_SPEC_VERSION >= 21 */
+/*[ENDIF] JAVA_SPEC_VERSION == 21 */
 	MetadataCache cache = getMetadataCache();
 	if (cache.cachedSimpleName != null) {
 		String cachedSimpleName = cache.cachedSimpleName.get();
@@ -4171,11 +4193,11 @@ public String getSimpleName() {
  * @see #isLocalClass()
  */
 public String getCanonicalName() {
-/*[IF JAVA_SPEC_VERSION >= 21]*/
+/*[IF JAVA_SPEC_VERSION == 21]*/
 	if (isUnnamedClass()) {
 		return null;
 	}
-/*[ENDIF] JAVA_SPEC_VERSION >= 21 */
+/*[ENDIF] JAVA_SPEC_VERSION == 21 */
 	MetadataCache cache = getMetadataCache();
 	if (cache.cachedCanonicalName != null) {
 		String cachedCanonicalName = cache.cachedCanonicalName.get();
@@ -5773,10 +5795,10 @@ SecurityException {
 		return AccessFlag.maskToAccessFlags(rawModifiers, location);
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 20 */
-/*[IF JAVA_SPEC_VERSION >= 21]*/
+/*[IF JAVA_SPEC_VERSION == 21]*/
 	/**
 	 * Answers true if the class is an unnamed class.
-	 * @return	true if the class is an unnamed class, and false otherwise.
+	 * @return true if the class is an unnamed class, and false otherwise
 	 *
 	 * @since 21
 	 */
@@ -5792,7 +5814,7 @@ SecurityException {
 		}
 		return rc;
 	}
-/*[ENDIF] JAVA_SPEC_VERSION >= 21 */
+/*[ENDIF] JAVA_SPEC_VERSION == 21 */
 /*[IF JAVA_SPEC_VERSION >= 22]*/
 	/**
 	 * Returns the Class object with the given primitive type name.
@@ -5818,6 +5840,14 @@ SecurityException {
 		case "void" -> void.class; //$NON-NLS-1$
 		default -> null;
 		};
+	}
+
+	Method findMethod(boolean publicOnly, String methodName, Class<?>... parameterTypes) {
+		try {
+			return getMethodHelper(false, false, publicOnly, null, methodName, parameterTypes);
+		} catch (NoSuchMethodException nsme) {
+			return null;
+		}
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 22 */
 }

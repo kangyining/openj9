@@ -90,14 +90,12 @@ import sun.reflect.annotation.AnnotationType;
  */
 final class Access implements JavaLangAccess {
 
+	/*[IF JAVA_SPEC_VERSION == 8]*/
 	/** Set thread's blocker field. */
 	public void blockedOn(java.lang.Thread thread, Interruptible interruptable) {
-		/*[IF JAVA_SPEC_VERSION >= 11]*/
-		Thread.blockedOn(interruptable);
-		/*[ELSE] JAVA_SPEC_VERSION >= 11 */
 		thread.blockedOn(interruptable);
-		/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION == 8 */
 
 	/**
 	 * Get the AnnotationType instance corresponding to this class.
@@ -285,14 +283,6 @@ final class Access implements JavaLangAccess {
 		return classLoader.createOrGetClassLoaderValueMap();
 	}
 
-	public Method getMethodOrNull(Class<?> clz, String name, Class<?>... parameterTypes) {
-		try {
-			return clz.getMethodHelper(false, false, null, name, parameterTypes);
-		} catch (NoSuchMethodException ex) {
-			return null;
-		}
-	}
-
 	@SuppressWarnings("removal")
 	public void invalidatePackageAccessCache() {
 /*[IF JAVA_SPEC_VERSION >= 10]*/
@@ -406,7 +396,11 @@ final class Access implements JavaLangAccess {
 
 /*[IF JAVA_SPEC_VERSION >= 11]*/
 	public void blockedOn(Interruptible interruptible) {
+		/*[IF JAVA_SPEC_VERSION >= 23]*/
+		Thread.currentThread().blockedOn(interruptible);
+		/*[ELSE] JAVA_SPEC_VERSION >= 23 */
 		Thread.blockedOn(interruptible);
+		/*[ENDIF] JAVA_SPEC_VERSION >= 23 */
 	}
 	public byte[] getBytesNoRepl(String str, Charset charset) throws CharacterCodingException {
 		/*[IF JAVA_SPEC_VERSION < 17]*/
@@ -750,6 +744,12 @@ final class Access implements JavaLangAccess {
 	public void copyToSegmentRaw(String string, MemorySegment segment, long offset) {
 		string.copyToSegmentRaw(segment, offset);
 	}
+
+	// No @Override to avoid breaking valhalla builds which is behind latest OpenJDK head stream update.
+	public Method findMethod(Class<?> clazz, boolean publicOnly, String methodName, Class<?>... parameterTypes) {
+		return clazz.findMethod(publicOnly, methodName, parameterTypes);
+	}
+
 /*[ENDIF] JAVA_SPEC_VERSION >= 22 */
 
 /*[IF INLINE-TYPES]*/

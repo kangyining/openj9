@@ -76,7 +76,7 @@ public class DeadlockTest {
 
 		Thread t1 = new Thread(() -> {
 			synchronized (lock) {
-				testResult.lockStatus = 1;
+				testResult.lockStatus.set(1);
 				try {
 					Thread.sleep(20000);
 				} catch (InterruptedException e) {
@@ -95,7 +95,7 @@ public class DeadlockTest {
 			}
 		});
 
-		while (testResult.lockStatus == 0) {
+		while (testResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
@@ -104,7 +104,24 @@ public class DeadlockTest {
 			CRIUTestUtils.checkPointJVM(criuSupport, path, true);
 			testResult.testPassed = false;
 		} catch (JVMCheckpointException e) {
-			if (!e.getCause().getMessage().contains("Blocking operation is not allowed in CRIU single thread mode")) {
+			/*
+			An expected exception:
+			org.eclipse.openj9.criu.JVMCheckpointException: Exception thrown when running user pre-checkpoint
+				at openj9.criu/org.eclipse.openj9.criu.CRIUSupport.checkpointJVM(CRIUSupport.java:526)
+				at org.openj9.criu.CRIUTestUtils.checkPointJVM(CRIUTestUtils.java:77)
+			Caused by: openj9.internal.criu.JVMCheckpointException: Exception thrown when running user pre-checkpoint
+				at java.base/openj9.internal.criu.InternalCRIUSupport.lambda$registerCheckpointHookHelper$2(InternalCRIUSupport.java:699)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI$J9InternalCheckpointHook.runHook(J9InternalCheckpointHookAPI.java:143)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI.runHooks(J9InternalCheckpointHookAPI.java:98)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI.runPreCheckpointHooksSingleThread(J9InternalCheckpointHookAPI.java:107)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.checkpointJVMImpl(Native Method)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.checkpointJVM(InternalCRIUSupport.java:867)
+				at openj9.criu/org.eclipse.openj9.criu.CRIUSupport.checkpointJVM(CRIUSupport.java:524)
+			Caused by: openj9.internal.criu.JVMCheckpointException: Blocking operation is not allowed in CRIU single thread mode.
+				at org.openj9.criu.DeadlockTest.lambda$checkpointDeadlock$1(DeadlockTest.java:93)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.lambda$registerCheckpointHookHelper$2(InternalCRIUSupport.java:697)
+			*/
+			if (!e.getCause().getCause().getMessage().contains("Blocking operation is not allowed in CRIU single thread mode")) {
 				testResult.testPassed = false;
 				e.printStackTrace();
 			}
@@ -126,7 +143,7 @@ public class DeadlockTest {
 		Thread t1 = new Thread(() -> {
 			Runnable run = () -> {
 				synchronized (lock) {
-					testResult.lockStatus = 1;
+					testResult.lockStatus.set(1);
 					try {
 						Thread.sleep(20000);
 					} catch (InterruptedException e) {
@@ -143,7 +160,7 @@ public class DeadlockTest {
 
 		CRIUSupport criuSupport = new CRIUSupport(path);
 
-		while (testResult.lockStatus == 0) {
+		while (testResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
@@ -170,7 +187,7 @@ public class DeadlockTest {
 		Path path = Paths.get("cpData");
 		final TestResult testResult = new TestResult(true, 0);
 		Runnable run = () -> {
-			testResult.lockStatus++;
+			testResult.lockStatus.incrementAndGet();
 			for (int i = 0; i < 30; i++) {
 				URL[] urlArray = { A.class.getProtectionDomain().getCodeSource().getLocation() };
 				URLClassLoader loader = new URLClassLoader(urlArray);
@@ -186,7 +203,7 @@ public class DeadlockTest {
 			thread.start();
 		}
 
-		while (testResult.lockStatus < 5) {
+		while (testResult.lockStatus.get() < 5) {
 			Thread.yield();
 		}
 
@@ -241,7 +258,7 @@ public class DeadlockTest {
 		Path path = Paths.get("cpData");
 
 		mainTestResult.testPassed = false;
-		mainTestResult.lockStatus = 0;
+		mainTestResult.lockStatus.set(0);
 
 		Thread t1 = new Thread(()->{
 			new ClinitDeadlock();
@@ -249,7 +266,7 @@ public class DeadlockTest {
 
 		t1.start();
 
-		while (mainTestResult.lockStatus == 0) {
+		while (mainTestResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
@@ -278,7 +295,7 @@ public class DeadlockTest {
 		Path path = Paths.get("cpData");
 
 		mainTestResult.testPassed = false;
-		mainTestResult.lockStatus = 0;
+		mainTestResult.lockStatus.set(0);
 
 		Thread t1 = new Thread(()->{
 			new ClinitDeadlock();
@@ -286,7 +303,7 @@ public class DeadlockTest {
 
 		t1.start();
 
-		while (mainTestResult.lockStatus == 0) {
+		while (mainTestResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
@@ -314,7 +331,7 @@ public class DeadlockTest {
 	static class ClinitDeadlock {
 
 		static {
-			mainTestResult.lockStatus = 1;
+			mainTestResult.lockStatus.set(1);
 			synchronized(lock) {
 				try {
 					System.out.println("Thread waiting");

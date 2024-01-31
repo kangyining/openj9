@@ -59,6 +59,9 @@ public class TimeChangeTest {
 			case "testGetLastRestoreTime":
 				tct.testGetLastRestoreTime();
 				break;
+			case "testGetProcessRestoreStartTime":
+				tct.testGetProcessRestoreStartTime();
+				break;
 			case "testMXBeanUpTime":
 				tct.testMXBeanUpTime();
 				break;
@@ -127,8 +130,7 @@ public class TimeChangeTest {
 		millisTimeStart = System.currentTimeMillis();
 		nanoTimeStart = System.nanoTime();
 		Thread.currentThread().sleep(100);
-		TimeUtilities.checkElapseTime("testTimeCompensation() sleep 100ms", millisTimeStart, nanoTimeStart, 100, 800,
-				100, 800);
+		TimeUtilities.checkElapseTime("testTimeCompensation() sleep 100ms", millisTimeStart, nanoTimeStart, 100, 100);
 
 		// this TimerTask is to run before CRIUR checkpoint
 		tu.timerSchedule("testTimeCompensation() preCheckpoint timer delayed 100ms", System.currentTimeMillis(),
@@ -151,7 +153,7 @@ public class TimeChangeTest {
 			public void run() {
 				// check time elapsed within preCheckpoint hook
 				TimeUtilities.checkElapseTime("testTimeCompensation() preCheckpointHook", preCheckpointMillisTime,
-						preCheckpointNanoTime, 2000, 4000, 2000, 4000);
+						preCheckpointNanoTime, 2000, 2000);
 
 				// scheduled task can't run before the checkpoint because all threads are halted
 				// in single threaded mode except the current thread performing CRIU checkpoit
@@ -166,7 +168,7 @@ public class TimeChangeTest {
 			public void run() {
 				// check time elapsed within postRestore hook
 				TimeUtilities.checkElapseTime("testTimeCompensation() postRestoreHook", preCheckpointMillisTime,
-						preCheckpointNanoTime, 4000, 8000, 2000, 4000);
+						preCheckpointNanoTime, 4000, 2000);
 
 				tu.timerSchedule("testTimeCompensation() postRestoreHook timer delayed 10ms",
 						System.currentTimeMillis(), System.nanoTime(), 10, 800, 9, 800, 10);
@@ -176,12 +178,12 @@ public class TimeChangeTest {
 		});
 
 		TimeUtilities.checkElapseTime("testTimeCompensation() preCheckpoint", preCheckpointMillisTime,
-				preCheckpointNanoTime, 2000, 3000, 2000, 3000);
+				preCheckpointNanoTime, 2000, 2000);
 
 		CRIUTestUtils.checkPointJVMNoSetup(criu, CRIUTestUtils.imagePath, false);
 
 		TimeUtilities.checkElapseTime("testTimeCompensation() after CRIU restore", preCheckpointMillisTime,
-				preCheckpointNanoTime, 2000, 6000, 2000, 6000);
+				preCheckpointNanoTime, 2000, 2000);
 
 		CRIUTestUtils.showThreadCurrentTime("testTimeCompensation() postRestore");
 		final long postRestoreMillisTime = System.currentTimeMillis();
@@ -197,7 +199,7 @@ public class TimeChangeTest {
 		Thread.currentThread().sleep(2000);
 
 		TimeUtilities.checkElapseTime("testTimeCompensation() postRestore", postRestoreMillisTime, postRestoreNanoTime,
-				2000, 3000, 2000, 3000);
+				2000, 2000);
 
 		if (tu.getResultAndCancelTimers()) {
 			System.out.println("PASSED: " + "testTimeCompensation");
@@ -229,10 +231,10 @@ public class TimeChangeTest {
 					+ " should be -1 before restore");
 		}
 		CRIUSupport criu = CRIUTestUtils.prepareCheckPointJVM(CRIUTestUtils.imagePath);
-		long beforeCheckpoint = System.currentTimeMillis();
+		long beforeCheckpoint = TimeUtilities.getCurrentTimeInNanoseconds();
 		CRIUTestUtils.checkPointJVMNoSetup(criu, CRIUTestUtils.imagePath, false);
 		lastRestoreTime = InternalCRIUSupport.getLastRestoreTime();
-		long afterRestore = System.currentTimeMillis();
+		long afterRestore = TimeUtilities.getCurrentTimeInNanoseconds();
 		if (beforeCheckpoint >= lastRestoreTime) {
 			System.out.println("FAILED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
 					+ " can't be less than the beforeCheckpoint time - " + beforeCheckpoint);
@@ -243,6 +245,33 @@ public class TimeChangeTest {
 			System.out.println("PASSED: InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime
 					+ " is between beforeCheckpoint time - " + beforeCheckpoint + " and afterRestore time - "
 					+ afterRestore);
+		}
+	}
+
+	private void testGetProcessRestoreStartTime() {
+		long processRestoreStartTime = InternalCRIUSupport.getProcessRestoreStartTime();
+		if (processRestoreStartTime != -1) {
+			System.out.println("FAILED: InternalCRIUSupport.getProcessRestoreStartTime() - " + processRestoreStartTime
+					+ " is not -1 before restore");
+		}
+		CRIUSupport criu = CRIUTestUtils.prepareCheckPointJVM(CRIUTestUtils.imagePath);
+		long beforeCheckpointTime = TimeUtilities.getCurrentTimeInNanoseconds();
+		CRIUTestUtils.checkPointJVMNoSetup(criu, CRIUTestUtils.imagePath, false);
+		processRestoreStartTime = InternalCRIUSupport.getProcessRestoreStartTime();
+		long lastRestoreTime = InternalCRIUSupport.getLastRestoreTime();
+		long afterRestoreTime = TimeUtilities.getCurrentTimeInNanoseconds();
+		if (beforeCheckpointTime >= processRestoreStartTime) {
+			System.out.println("FAILED: InternalCRIUSupport.getProcessRestoreStartTime() - " + processRestoreStartTime
+					+ " is less than beforeCheckpointTime - " + beforeCheckpointTime);
+		} else if (processRestoreStartTime >= lastRestoreTime) {
+			System.out.println("FAILED: InternalCRIUSupport.getProcessRestoreStartTime() - " + processRestoreStartTime
+					+ " is more than InternalCRIUSupport.getLastRestoreTime() - " + lastRestoreTime);
+		} else if (processRestoreStartTime >= afterRestoreTime) {
+			System.out.println("FAILED: InternalCRIUSupport.getProcessRestoreStartTime() - " + processRestoreStartTime
+					+ " is more than afterRestoreTime - " + afterRestoreTime);
+		} else {
+			System.out.println("PASSED: InternalCRIUSupport.getProcessRestoreStartTime() - " + processRestoreStartTime
+					+ " is between beforeCheckpointTime - " + beforeCheckpointTime + " and afterRestoreTime - " + afterRestoreTime);
 		}
 	}
 

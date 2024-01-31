@@ -173,7 +173,7 @@ static int32_t getJ9InitialBytecodeSize(TR_ResolvedMethod * feMethod, TR::Resolv
 
 static bool insideIntPipelineForEach(TR_ResolvedMethod *method, TR::Compilation *comp)
    {
-   char *sig = "accept";
+   const char *sig = "accept";
    bool returnValue = true; //default is true since if first method is IntPipeline.forEach true is returned
 
    //Searches up the owning method chain until IntPipeline.forEach is found
@@ -3354,7 +3354,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
    for (int32_t k = 0; k < callsite->numTargets(); k++)
       {
-      uint32_t size = 0;
+      int32_t size = 0;
 
       TR_EstimateCodeSize::raiiWrapper ecsWrapper(this, tracer(), _maxRecursiveCallByteCodeSizeEstimate);
       TR_EstimateCodeSize *ecs = ecsWrapper.getCodeEstimator();
@@ -3452,7 +3452,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
          heuristicTrace(tracer(),"WeighCallSite: For Target %p node %p signature %s, estimation returned a size of %d",
                                   calltarget,calltarget->_myCallSite->_callNode,tracer()->traceSignature(calltarget),size);
 
-         if (currentBlockHasExceptionSuccessors && ecs->aggressivelyInlineThrows())
+         if (currentBlockHasExceptionSuccessors && ecs->aggressivelyInlineThrows() && size > 0)
             {
             _maxRecursiveCallByteCodeSizeEstimate >>= 3;
             size >>= 3;
@@ -3469,7 +3469,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
                (size > _maxRecursiveCallByteCodeSizeEstimate/2))
             possiblyVeryHotLargeCallee = true;
 
-         if (calltarget->_calleeSymbol->isSynchronised())
+         if (calltarget->_calleeSymbol->isSynchronised() && size > 0)
             {
             size >>= 1; // could help gvp
             heuristicTrace(tracer(),"Setting size to %d because call is Synchronized",size);
@@ -3481,16 +3481,16 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
             wouldBenefitFromInlining = true;
             }
 
-         if (strstr(calltarget->_calleeSymbol->signature(trMemory()),"BigDecimal.add("))
+         if (strstr(calltarget->_calleeSymbol->signature(trMemory()),"BigDecimal.add(") && size > 0)
             {
             size >>=2;
             heuristicTrace(tracer(),"Setting size to %d because call is BigDecimal.add",size);
             }
 
-         if (isHot(comp()))
+         if (isHot(comp()) && size > 0)
             {
             TR_ResolvedMethod *m = calltarget->_calleeSymbol->getResolvedMethod();
-            char *sig = "toString";
+            const char *sig = "toString";
             if (strncmp(m->nameChars(), sig, strlen(sig)) == 0)
                {
                size >>= 1;
@@ -3587,53 +3587,61 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
                if (comp()->trace(OMR::inlining))
                   heuristicTrace(tracer(),"WeighCallSite: Considering shrinking call %p with frequency %d\n", callsite->_callNode, frequency2);
 
-               bool largeCompiledCallee = !comp()->getOption(TR_InlineVeryLargeCompiledMethods) &&
-                                          isLargeCompiledMethod(calltarget->_calleeMethod, size, frequency2);
-               if (largeCompiledCallee)
+               if (size > 0)
                   {
-                  size = size*TR::Options::_inlinerVeryLargeCompiledMethodAdjustFactor;
-                  }
-               else if (frequency2 > borderFrequency)
-                  {
-                  float factor = (float)(maxFrequency-frequency2)/(float)maxFrequency;
-                  factor = std::max(factor, 0.4f);
-
-                  float avgMethodSize = (float)size/(float)ecs->getNumOfEstimatedCalls();
-                  float numCallsFactor = (float)(avgMethodSize)/110.0f;
-
-                  numCallsFactor = std::max(factor, 0.1f);
-
-                  if (size > 100)
+                  bool largeCompiledCallee = !comp()->getOption(TR_InlineVeryLargeCompiledMethods) &&
+                                             isLargeCompiledMethod(calltarget->_calleeMethod, size, frequency2);
+                  if (largeCompiledCallee)
                      {
-                     size = (int)((float)size * factor * numCallsFactor);
-                     if (size < 100) size = 100;
+                     size = size*TR::Options::_inlinerVeryLargeCompiledMethodAdjustFactor;
+                     }
+                  else if (frequency2 > borderFrequency)
+                     {
+                     float factor = (float)(maxFrequency-frequency2)/(float)maxFrequency;
+                     factor = std::max(factor, 0.4f);
+
+                     float avgMethodSize = (float)size/(float)ecs->getNumOfEstimatedCalls();
+                     float numCallsFactor = (float)(avgMethodSize)/110.0f;
+
+                     numCallsFactor = std::max(factor, 0.1f);
+
+                     if (size > 100)
+                        {
+                        size = (int)((float)size * factor * numCallsFactor);
+                        if (size < 100) size = 100;
+                        }
+                     else
+                        {
+                        size = (int)((float)size * factor * numCallsFactor);
+                        }
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
+                     }
+                  else if ((frequency2 > 0) && (frequency2 < veryColdBorderFrequency)) // luke-warm block
+                     {
+                     float factor = (float)frequency2 / (float)maxFrequency;
+                     //factor = std::max(factor, 0.1f);
+                     size = (int)((float)size / (factor*factor)); // make the size look bigger to inline less
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
+                     }
+                  else if ((frequency2 >= 0) && (frequency2 < coldBorderFrequency)) // very cold block
+                     {
+                     //to avoid division by zero crash. Semantically  freqs of 0 and 1 should be pretty close given maxFrequency of 10K
+                     int adjFrequency2 = frequency2 ? frequency2 : 1;
+                     float factor = (float)adjFrequency2 / (float)maxFrequency;
+                     //factor = std::max(factor, 0.1f);
+                     size = (int)((float)size / factor);
+
+
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(),"WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
                      }
                   else
                      {
-                     size = (int)((float)size * factor * numCallsFactor);
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(),"WeighCallSite: Not adjusted call-graph size for call node %p, size %d\n", callsite->_callNode, origSize);
                      }
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
-                  }
-               else if ((frequency2 > 0) && (frequency2 < veryColdBorderFrequency)) // luke-warm block
-                  {
-                  float factor = (float)frequency2 / (float)maxFrequency;
-                  //factor = std::max(factor, 0.1f);
-                  size = (int)((float)size / (factor*factor)); // make the size look bigger to inline less
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
-                  }
-               else if ((frequency2 >= 0) && (frequency2 < coldBorderFrequency)) // very cold block
-                  {
-                  //to avoid division by zero crash. Semantically  freqs of 0 and 1 should be pretty close given maxFrequency of 10K
-                  int adjFrequency2 = frequency2 ? frequency2 : 1;
-                  float factor = (float)adjFrequency2 / (float)maxFrequency;
-                  //factor = std::max(factor, 0.1f);
-                  size = (int)((float)size / factor);
-
-
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(),"WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
                   }
                else
                   {
@@ -4048,11 +4056,11 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
       return false;
 
    TR_J9InlinerPolicy *j9InlinerPolicy = (TR_J9InlinerPolicy *)getPolicy();
-   static char *polymorphicCalleeSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismCalleeSize");
+   static const char *polymorphicCalleeSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismCalleeSize");
    int polymorphicCalleeSizeThreshold = polymorphicCalleeSizeThresholdStr ? atoi(polymorphicCalleeSizeThresholdStr) : 10;
-   static char *polymorphicRootSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismRootSize");
+   static const char *polymorphicRootSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismRootSize");
    int polymorphicRootSizeThreshold = polymorphicRootSizeThresholdStr ? atoi(polymorphicRootSizeThresholdStr) : 30;
-   static char *trustedInterfacePattern = feGetEnv("TR_TrustedPolymorphicInterfaces");
+   static const char *trustedInterfacePattern = feGetEnv("TR_TrustedPolymorphicInterfaces");
    static TR::SimpleRegex *trustedInterfaceRegex = trustedInterfacePattern ? TR::SimpleRegex::create(trustedInterfacePattern) : NULL;
    // we need to be conservative about inlining potentially highly polymorphic interface calls for
    // functional frameworks like scala - we limit this to hot and above
@@ -5300,6 +5308,7 @@ bool TR_J9InlinerPolicy::isJSR292SmallGetterMethod(TR_ResolvedMethod *resolvedMe
       case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthS:
       case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthC:
       case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthL:
+      case TR::java_lang_invoke_VarHandle_asDirect:
          return true;
 
       default:

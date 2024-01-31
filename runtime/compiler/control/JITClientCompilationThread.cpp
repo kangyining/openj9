@@ -506,6 +506,7 @@ handleServerMessage(JITServer::ClientStream *client, TR_J9VM *fe, JITServer::Mes
             vmInfo._helperAddresses[i] = runtimeHelperValue((TR_RuntimeHelper) i);
 #endif
          vmInfo._isHotReferenceFieldRequired = TR::Compiler->om.isHotReferenceFieldRequired();
+         vmInfo._isOffHeapAllocationEnabled = TR::Compiler->om.isOffHeapAllocationEnabled();
          vmInfo._osrGlobalBufferSize = javaVM->osrGlobalBufferSize;
          vmInfo._needsMethodTrampolines = TR::CodeCacheManager::instance()->codeCacheConfig().needsMethodTrampolines();
          vmInfo._objectAlignmentInBytes = TR::Compiler->om.objectAlignmentInBytes();
@@ -790,8 +791,8 @@ handleServerMessage(JITServer::ClientStream *client, TR_J9VM *fe, JITServer::Mes
          auto &className = std::get<0>(recv);
          auto &methodName = std::get<1>(recv);
          auto &signature = std::get<2>(recv);
-         client->write(response, fe->getMethodFromName(const_cast<char *>(className.data()), const_cast<char *>(methodName.data()),
-                                                       const_cast<char *>(signature.data())));
+         client->write(response, fe->getMethodFromName(className.data(), methodName.data(),
+                                                       signature.data()));
          }
          break;
       case MessageType::VM_getMethodFromClass:
@@ -801,8 +802,8 @@ handleServerMessage(JITServer::ClientStream *client, TR_J9VM *fe, JITServer::Mes
          auto &methodName = std::get<1>(recv);
          auto &signature = std::get<2>(recv);
          TR_OpaqueClassBlock *callingClass = std::get<3>(recv);
-         client->write(response, fe->getMethodFromClass(methodClass, const_cast<char *>(methodName.data()),
-                                                        const_cast<char *>(signature.data()), callingClass));
+         client->write(response, fe->getMethodFromClass(methodClass, methodName.data(),
+                                                        signature.data(), callingClass));
          }
          break;
       case MessageType::VM_createMethodHandleArchetypeSpecimen:
@@ -1182,6 +1183,16 @@ handleServerMessage(JITServer::ClientStream *client, TR_J9VM *fe, JITServer::Mes
          TR::KnownObjectTable::Index expectedTypeIndex = std::get<1>(recv);
          bool result = fe->isMethodHandleExpectedType(comp, mhIndex, expectedTypeIndex);
          client->write(response, result, knot->getPointerLocation(mhIndex), knot->getPointerLocation(expectedTypeIndex));
+         }
+         break;
+      case MessageType::VM_getMethodHandleTableEntryIndex:
+         {
+         auto recv = client->getRecvData<TR::KnownObjectTable::Index, TR::KnownObjectTable::Index>();
+         TR::KnownObjectTable::Index mhIndex = fe->getMethodHandleTableEntryIndex(comp, std::get<0>(recv), std::get<1>(recv));
+         uintptr_t* mhObj = NULL;
+         if (mhIndex != TR::KnownObjectTable::UNKNOWN)
+            mhObj = knot->getPointerLocation(mhIndex);
+         client->write(response, mhIndex, mhObj);
          }
          break;
 #endif // J9VM_OPT_OPENJDK_METHODHANDLE

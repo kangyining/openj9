@@ -103,8 +103,6 @@
 
 #define LOCAL_OBJECTS_COLLECTABLE 1
 
-extern void createGuardSiteForRemovedGuard(TR::Compilation *comp, TR::Node* ifNode);
-
 static bool blockIsInLoop(TR::Block *block)
    {
    for (TR_Structure *s = block->getStructureOf()->getParent(); s; s = s->getParent())
@@ -5901,8 +5899,6 @@ bool TR_EscapeAnalysis::fixupNode(TR::Node *node, TR::Node *parent, TR::NodeChec
       if (firstValue == secondValue)
          {
          compareValue = 0;
-
-         createGuardSiteForRemovedGuard(comp(), node);
          }
       else
          {
@@ -8226,7 +8222,7 @@ void TR_EscapeAnalysis::scanForExtraCallsToInline()
 
          TR::TreeTop *callTreeToInline = NULL;
          TR::Node    *callNode = NULL;
-         char *reason = "??";
+         const char *reason = "??";
          if (  tt->getNode()->getNumChildren() >= 1
             && tt->getNode()->getFirstChild()->getOpCode().isCall()
             && tt->getNode()->getFirstChild()->getSymbol()->isResolvedMethod())
@@ -8360,7 +8356,7 @@ FieldInfo& Candidate::findOrSetFieldInfo(TR::Node *fieldRefNode, TR::SymbolRefer
    }
 
 
-void TR_EscapeAnalysis::printCandidates(char *title)
+void TR_EscapeAnalysis::printCandidates(const char *title)
    {
    if (title)
       traceMsg(comp(), "\n%s\n", title);
@@ -8376,7 +8372,7 @@ void TR_EscapeAnalysis::printCandidates(char *title)
 static void printSymRefList(TR_ScratchList<TR::SymbolReference> *list, TR::Compilation *comp)
    {
    ListIterator<TR::SymbolReference> iter(list);
-   char *sep = "";
+   const char *sep = "";
    for (TR::SymbolReference *symRef = iter.getFirst(); symRef; symRef = iter.getNext())
       {
       traceMsg(comp, "%s#%d", sep, symRef->getReferenceNumber());

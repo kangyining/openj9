@@ -1166,6 +1166,8 @@ Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getOnlin
 jstring JNICALL
 Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getHardwareModelImpl(JNIEnv *env, jobject obj);
 
+jboolean JNICALL
+Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_hasCpuLoadCompatibilityFlag(JNIEnv *env, jclass unusedClass);
 /**
  * Returns the maximum number of file descriptors that can be opened in a process.
  *
@@ -1301,11 +1303,33 @@ Java_openj9_internal_criu_InternalCRIUSupport_getCheckpointRestoreNanoTimeDeltaI
 jlong JNICALL
 Java_openj9_internal_criu_InternalCRIUSupport_getLastRestoreTimeImpl(JNIEnv *env, jclass unused);
 
+jlong JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_getProcessRestoreStartTimeImpl(JNIEnv *env, jclass unused);
+
 jboolean JNICALL
 Java_openj9_internal_criu_InternalCRIUSupport_isCheckpointAllowedImpl(JNIEnv *env, jclass unused);
 
 jboolean JNICALL
 Java_openj9_internal_criu_InternalCRIUSupport_isCRIUSupportEnabledImpl(JNIEnv *env, jclass unused);
+
+void JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_checkpointJVMImpl(JNIEnv *env, jclass unused, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile, jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring envFile);
+
+jobject JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_getRestoreSystemProperites(JNIEnv *env, jclass unused);
+
+jboolean JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_setupJNIFieldIDsAndCRIUAPI(JNIEnv *env, jclass unused);
+
+void JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_checkpointJVMImpl(JNIEnv *env, jclass unused, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile, jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile);
+
+#if defined(J9VM_OPT_CRAC_SUPPORT)
+jstring JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_getCRaCCheckpointToDirImpl(JNIEnv *env, jclass unused);
+jboolean JNICALL
+Java_openj9_internal_criu_InternalCRIUSupport_isCRaCSupportEnabledImpl(JNIEnv *env, jclass unused);
+#endif /* defined(J9VM_OPT_CRAC_SUPPORT) */
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 #if JAVA_SPEC_VERSION >= 19

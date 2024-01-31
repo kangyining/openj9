@@ -1,5 +1,6 @@
+/*[INCLUDE-IF CRAC_SUPPORT]*/
 /*******************************************************************************
- * Copyright IBM Corp. and others 2021
+ * Copyright IBM Corp. and others 2024
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -19,23 +20,9 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
-
-#ifndef _Included_org_eclipse_openj9_criu_CRIUSupport
-#define _Included_org_eclipse_openj9_criu_CRIUSupport
-
-#include <jni.h>
-#include "j9.h"
-
-extern "C" {
-
-void JNICALL
-Java_org_eclipse_openj9_criu_CRIUSupport_checkpointJVMImpl(JNIEnv *env, jclass unused, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile, jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring envFile);
-
-jobject JNICALL
-Java_org_eclipse_openj9_criu_CRIUSupport_getRestoreSystemProperites(JNIEnv *env, jclass unused);
-
-jboolean JNICALL
-Java_org_eclipse_openj9_criu_CRIUSupport_setupJNIFieldIDsAndCRIUAPI(JNIEnv *env, jclass unused);
-} /* extern "C" */
-
-#endif
+/**
+ * This package enables access to openj9.internal.criu.J9InternalCheckpointHookAPI.
+ *
+ * The jdk.crac API doc is https://crac.github.io/openjdk-builds/javadoc/api/java.base/jdk/crac/package-summary.html.
+ */
+package jdk.crac;

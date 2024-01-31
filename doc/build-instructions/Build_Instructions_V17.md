@@ -72,7 +72,7 @@ If you want to build a binary by using a Docker container, follow these steps to
 
 2. Next, run the following command to build a Docker image, called **openj9**:
 ```
-bash mkdocker.sh --tag=openj9 --dist=ubuntu --version=20 --gitcache=no --jdk=17 --build
+bash mkdocker.sh --tag=openj9 --dist=ubuntu --version=22 --gitcache=no --jdk=17 --build
 ```
 
 3. Start a Docker container from the **openj9** image with the following command, where `-v` maps any directory, `<host_directory>`,
@@ -90,7 +90,7 @@ Now that you have the Docker image running, you are ready to move to the next st
 If you don't want to user Docker, you can still build directly on your Ubuntu system or in a Ubuntu virtual machine. Use the output of the following command like a recipe card to determine the software dependencies that must be installed on the system, plus a few configuration steps.
 
 ```
-bash mkdocker.sh --tag=openj9 --dist=ubuntu --version=20 --gitcache=no --jdk=17 --print
+bash mkdocker.sh --tag=openj9 --dist=ubuntu --version=22 --gitcache=no --jdk=17 --print
 ```
 
 1. Install the list of dependencies that can be obtained with the `apt-get` command from the following section of the Dockerfile:
@@ -100,11 +100,11 @@ apt-get update \
     ...
 ```
 
-2. The previous step installed g++-10 and gcc-10 packages, which might be different
+2. The previous step installed g++-11 and gcc-11 packages, which might be different
 than the default version installed on your system. Export variables to set the
 version used in the build.
 ```
-export CC=gcc-10 CXX=g++-10
+export CC=gcc-11 CXX=g++-11
 ```
 
 3. Download and setup the boot JDK using the latest AdoptOpenJDK v17 build.
@@ -378,7 +378,7 @@ You must install a number of software dependencies to create a suitable build en
 
 - [Cygwin](https://cygwin.com/install.html), which provides a Unix-style command line interface. Install all packages in the `Devel` category. In the `Archive` category, install the packages `zip` and `unzip`. In the `Utils` category, install the `cpio` package. Install any further package dependencies that are identified by the installer. More information about using Cygwin can be found [here](https://cygwin.com/docs.html).
 - [Windows JDK 17](https://api.adoptopenjdk.net/v3/binary/latest/17/ga/windows/x64/jdk/openj9/normal/adoptopenjdk), which is used as the boot JDK.
-- [Microsoft Visual Studio 2019](https://aka.ms/vs/16/release/vs_community.exe), which is the default compiler level used by OpenJDK17.
+- [Microsoft Visual Studio 2022](https://aka.ms/vs/17/release/vs_community.exe), which is the default compiler level used by OpenJDK17.
 - [Freemarker V2.3.8](https://sourceforge.net/projects/freemarker/files/freemarker/2.3.8/freemarker-2.3.8.tar.gz/download) - only when building with `--with-cmake=no`
 - [LLVM/Clang](https://releases.llvm.org/7.0.0/LLVM-7.0.0-win64.exe)
 - [NASM Assembler v2.13.03 or newer](https://www.nasm.us/pub/nasm/releasebuilds/?C=M;O=D)
@@ -402,18 +402,18 @@ cd /cygdrive/c/temp
 
 - Run the following command:
 ```
-wget https://aka.ms/vs/16/release/vs_community.exe -O vs2019.exe
+wget https://aka.ms/vs/17/release/vs_community.exe -O vs2022.exe
 ```
 
-- Before installing Visual Studio, change the permissions on the installation file by running `chmod u+x vs2019.exe`.
-- Install Visual Studio by running the file `vs2019.exe` (There is no special step required for installing. Please follow the guide of the installer to install all desired components, the C++ compiler is required).
+- Before installing Visual Studio, change the permissions on the installation file by running `chmod u+x vs2022.exe`.
+- Install Visual Studio by running the file `vs2022.exe` (There is no special step required for installing. Please follow the guide of the installer to install all desired components, the C++ compiler is required).
 
 Not all of the shared libraries that are included with Visual Studio are registered during installation.
 In particular, the `msdia140.dll` libraries must be registered manually by running command prompt as administrator.  To do so, execute the following from a command prompt:
 
 ```
-regsvr32 "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\DIA SDK\bin\msdia140.dll"
-regsvr32 "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\DIA SDK\bin\amd64\msdia140.dll"
+regsvr32 "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\DIA SDK\bin\msdia140.dll"
+regsvr32 "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\DIA SDK\bin\amd64\msdia140.dll"
 ```
 
 - When building with `--with-cmake=no`, unpack the Freemarker archive:
@@ -622,6 +622,8 @@ Mixed references is the default to build when no options are specified. _Note th
 - `--with-mixedrefs=static` (this is the default) create a mixed references build which avoids runtime checks by compiling source twice
 - `--with-noncompressedrefs` create a build supporting non-compressed references only
 
+:pencil: **AArch64 macOS only:** Please specify `--with-noncompressedrefs` because compressed references is not supported on AArch64 macOS yet.
+
 :pencil: **OpenSSL support:** If you want to build an OpenJDK that includes OpenSSL, you must specify `--with-openssl={fetched|path_to_library}`
 
   where:
@@ -719,7 +721,7 @@ bash get_source.sh
 
 You must install a number of software dependencies to create a suitable build environment on your AArch64 Linux system:
 
-- GNU C/C++ compiler (The Docker image uses GCC 7.5)
+- GNU C/C++ compiler 10.3 (The Docker image uses GCC 7.5)
 - [AArch64 Linux JDK](https://api.adoptopenjdk.net/v3/binary/latest/17/ga/linux/aarch64/jdk/openj9/normal/adoptopenjdk), which is used as the boot JDK.
 - [Freemarker V2.3.8](https://sourceforge.net/projects/freemarker/files/freemarker/2.3.8/freemarker-2.3.8.tar.gz/download) - Only when building with `--with-cmake=no`
 

@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright IBM Corp. and others 2021
+# Copyright IBM Corp. and others 2023
 #
 # This program and the accompanying materials are made available under
 # the terms of the Eclipse Public License 2.0 which accompanies this
@@ -20,10 +20,15 @@
 # SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
-if(J9VM_OPT_CRIU_SUPPORT)
-	omr_add_exports(j9criu
-		Java_org_eclipse_openj9_criu_CRIUSupport_checkpointJVMImpl
-		Java_org_eclipse_openj9_criu_CRIUSupport_getRestoreSystemProperites;
-		Java_org_eclipse_openj9_criu_CRIUSupport_setupJNIFieldIDsAndCRIUAPI;
-	)
-endif()
+j9vm_add_library(access SHARED
+	compiler.cpp
+)
+
+target_link_libraries(access
+	PRIVATE
+		j9vm_interface
+)
+
+omr_add_exports(access
+	Java_org_openj9_test_util_CompilerAccess_registerNatives
+)

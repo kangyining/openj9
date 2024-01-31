@@ -896,8 +896,7 @@ ClientSessionData::getClassRecord(J9Class *clazz, JITServer::ServerStream *strea
       auto recv = stream->read<uintptr_t, std::string>();
       uintptr_t offset = std::get<0>(recv);
       auto &name = std::get<1>(recv);
-
-      if (offset)
+      if (!name.empty())
          {
          OMR::CriticalSection cs(getROMMapMonitor());
          auto it = getROMClassMap().find((J9Class *)clazz);
@@ -1226,6 +1225,8 @@ ClientSessionHT::purgeOldDataIfNeeded()
             oldAge = OLD_AGE_UNDER_LOW_MEMORY; //memory is low
             }
          }
+
+      bool hadExistingClients = !_clientSessionMap.empty();
       // Time for a purge operation.
       // Scan the entire table and delete old elements that are not in use
       for (auto iter = _clientSessionMap.begin(); iter != _clientSessionMap.end(); ++iter)
@@ -1241,6 +1242,13 @@ ClientSessionHT::purgeOldDataIfNeeded()
             _clientSessionMap.erase(iter); // delete the mapping from the hashtable
             }
          }
+      // If the purge operation was responsible for deleting the last client sessions, shut down the shared ROM class cache as well
+      if (hadExistingClients && _clientSessionMap.empty())
+         {
+         if (auto cache = TR::CompilationInfo::get()->getJITServerSharedROMClassCache())
+            cache->shutdown();
+         }
+
       _timeOfLastPurge = crtTime;
 
       // JITServer TODO: keep stats on how many elements were purged

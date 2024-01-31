@@ -266,9 +266,9 @@ static void loadDLL (void* dllLoadInfo, void* userDataTemp);
 static void registerIgnoredOptions (J9PortLibrary *portLibrary, J9VMInitArgs* j9vm_args);
 static UDATA protectedInitializeJavaVM (J9PortLibrary* portLibrary, void * userData);
 static J9Pool *initializeDllLoadTable (J9PortLibrary *portLibrary, J9VMInitArgs* j9vm_args, UDATA verboseFlags, J9JavaVM *vm);
-#if (defined(J9VM_OPT_SIDECAR))
+#if defined(J9VM_OPT_SIDECAR) && (JAVA_SPEC_VERSION < 21)
 static IDATA checkDjavacompiler (J9PortLibrary *portLibrary, J9VMInitArgs* j9vm_args);
-#endif /* J9VM_OPT_SIDECAR */
+#endif /* defined(J9VM_OPT_SIDECAR) && (JAVA_SPEC_VERSION < 21) */
 static void* getOptionExtraInfo (J9PortLibrary *portLibrary, J9VMInitArgs* j9vm_args, IDATA match, char* optionName);
 static void closeAllDLLs (J9JavaVM* vm);
 
@@ -2760,6 +2760,37 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 				argIndex2 = FIND_NEXT_ARG_IN_VMARGS_FORWARD(STARTSWITH_MATCH, VMOPT_XXGLOBALLOCKRESERVATIONCOLON, NULL, argIndex2);
 			}
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+			vm->checkpointState.maxRetryForNotCheckpointSafe = 100;
+			if ((argIndex = FIND_AND_CONSUME_VMARG(STARTSWITH_MATCH, VMOPT_XXMAXRETRYFORNOTCHECKPOINTSAFE_EQUALS, NULL)) >= 0) {
+				UDATA maxRetryForNotCheckpointSafe = 0;
+				char *optname = VMOPT_XXMAXRETRYFORNOTCHECKPOINTSAFE_EQUALS;
+				parseError = GET_INTEGER_VALUE(argIndex, optname, maxRetryForNotCheckpointSafe);
+				if (OPTION_OK != parseError) {
+					parseErrorOption = VMOPT_XXMAXRETRYFORNOTCHECKPOINTSAFE_EQUALS;
+					goto _memParseError;
+				}
+				vm->checkpointState.maxRetryForNotCheckpointSafe = maxRetryForNotCheckpointSafe;
+			}
+
+			vm->checkpointState.sleepMillisecondsForNotCheckpointSafe = 10;
+			if ((argIndex = FIND_AND_CONSUME_VMARG(STARTSWITH_MATCH, VMOPT_XXSLEEPMILLISECONDSFORNOTCHECKPOINTSAFE_EQUALS, NULL)) >= 0) {
+				UDATA sleepMillisecondsForNotCheckpointSafe = 0;
+				char *optname = VMOPT_XXSLEEPMILLISECONDSFORNOTCHECKPOINTSAFE_EQUALS;
+				parseError = GET_INTEGER_VALUE(argIndex, optname, sleepMillisecondsForNotCheckpointSafe);
+				if (OPTION_OK != parseError) {
+					parseErrorOption = VMOPT_XXSLEEPMILLISECONDSFORNOTCHECKPOINTSAFE_EQUALS;
+					goto _memParseError;
+				}
+				if (sleepMillisecondsForNotCheckpointSafe < 1) {
+					parseErrorOption = VMOPT_XXSLEEPMILLISECONDSFORNOTCHECKPOINTSAFE_EQUALS;
+					parseError = OPTION_OUTOFRANGE;
+					goto _memParseError;
+				}
+				vm->checkpointState.sleepMillisecondsForNotCheckpointSafe = sleepMillisecondsForNotCheckpointSafe;
+			}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
 			break;
 
 		case BYTECODE_TABLE_SET:
@@ -3885,11 +3916,35 @@ processVMArgsFromFirstToLast(J9JavaVM * vm)
 		}
 	}
 
+#if defined(J9VM_OPT_CRAC_SUPPORT)
+	{
+		IDATA xxCRaCCheckpointToIndex = FIND_AND_CONSUME_VMARG(STARTSWITH_MATCH, VMOPT_XXCRACCHECKPOINTTO, NULL);
+		if (xxCRaCCheckpointToIndex >= 0) {
+			PORT_ACCESS_FROM_JAVAVM(vm);
+			if (J9_ARE_ANY_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_CHECKPOINT_ENABLED)) {
+				/* -XX:+EnableCRIUSupport was specified which is incompatible with CRaC */
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_VM_CRIU_CRAC_INCOMPATIBLE_SETTING, NULL);
+				return JNI_ERR;
+			} else {
+				char *cracCheckpointToValue = NULL;
+
+				optionValueOperations(PORTLIB, vm->vmArgsArray, xxCRaCCheckpointToIndex, GET_OPTION, &cracCheckpointToValue, 0, '=', 0, NULL);
+				Trc_VM_crac_checkpointTo(cracCheckpointToValue);
+				vm->checkpointState.cracCheckpointToDir = cracCheckpointToValue;
+
+				vm->checkpointState.flags |= J9VM_CRAC_IS_CHECKPOINT_ENABLED | J9VM_CRIU_IS_CHECKPOINT_ALLOWED;
+				vm->portLibrary->isCheckPointAllowed = TRUE;
+				j9port_control(J9PORT_CTLDATA_CRIU_SUPPORT_FLAGS, OMRPORT_CRIU_SUPPORT_ENABLED);
+			}
+		}
+	}
+#endif /* defined(J9VM_OPT_CRAC_SUPPORT) */
+
 	{
 		IDATA enableCRIUSecProvider = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXENABLECRIUSECPROVIDER, NULL);
 		IDATA disableCRIUSecProvider = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXDISABLECRIUSECPROVIDER, NULL);
 		if (enableCRIUSecProvider >= disableCRIUSecProvider) {
-			if (J9_ARE_ANY_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_CHECKPOINT_ENABLED)) {
+			if (J9_IS_CRIU_OR_CRAC_CHECKPOINT_ENABLED(vm)) {
 				vm->checkpointState.flags |= J9VM_CRIU_ENABLE_CRIU_SEC_PROVIDER;
 			}
 		}
@@ -3899,7 +3954,7 @@ processVMArgsFromFirstToLast(J9JavaVM * vm)
 		IDATA enableCRIUNonPortableMode = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXENABLECRIUNONPORTABLEMODE, NULL);
 		IDATA disableCRIUNonPortableMode = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXDISABLECRIUNONPORTABLEMODE, NULL);
 		if (enableCRIUNonPortableMode >= disableCRIUNonPortableMode) {
-			if (J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_CHECKPOINT_ENABLED)) {
+			if (J9_IS_CRIU_OR_CRAC_CHECKPOINT_ENABLED(vm)) {
 				vm->checkpointState.flags |= J9VM_CRIU_IS_NON_PORTABLE_RESTORE_MODE;
 			}
 		}
@@ -3909,7 +3964,7 @@ processVMArgsFromFirstToLast(J9JavaVM * vm)
 		IDATA enableJVMRestorePortableeMode = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXENABLEJVMRESTOREPORTABLEMODE, NULL);
 		IDATA disableJVMRestorePortableMode = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXDISABLEJVMRESTOREPORTABLEMODE, NULL);
 		if (enableJVMRestorePortableeMode > disableJVMRestorePortableMode) {
-			if (J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_CHECKPOINT_ENABLED)) {
+			if (J9_IS_CRIU_OR_CRAC_CHECKPOINT_ENABLED(vm)) {
 				vm->checkpointState.flags |= J9VM_CRIU_IS_PORTABLE_JVM_RESTORE_MODE;
 			}
 		}
@@ -3923,9 +3978,16 @@ processVMArgsFromFirstToLast(J9JavaVM * vm)
 		}
 	}
 
-	vm->checkpointState.lastRestoreTimeMillis = -1;
-	/* Its unclear if we need an option for this, so we can keep the init here for the time being */
-	vm->checkpointState.maxRetryForNotCheckpointSafe = 100;
+	{
+		IDATA enableSupportDebugOnRestore = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXENABLEDEBUGONRESTORE, NULL);
+		IDATA disableSupportDebugOnRestore = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXDISABLEDEBUGONRESTORE, NULL);
+		if (enableSupportDebugOnRestore > disableSupportDebugOnRestore) {
+			vm->checkpointState.flags |= J9VM_CRIU_SUPPORT_DEBUG_ON_RESTORE;
+		}
+	}
+
+	vm->checkpointState.lastRestoreTimeInNanoseconds = -1;
+	vm->checkpointState.processRestoreStartTimeInNanoseconds = -1;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 	{
@@ -4085,13 +4147,18 @@ processVMArgsFromFirstToLast(J9JavaVM * vm)
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
 	{
-		IDATA keepJNIIDs = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXKEEPJNIIDS, NULL);
-		IDATA noKeepJNIIDs = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXNOKEEPJNIIDS, NULL);
-		if (keepJNIIDs > noKeepJNIIDs) {
-			vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_KEEP_JNI_IDS;
-		} else if (keepJNIIDs < noKeepJNIIDs) {
-			vm->extendedRuntimeFlags2 &= ~(UDATA)J9_EXTENDED_RUNTIME2_KEEP_JNI_IDS;
+		IDATA cpuLoadCompatibility = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXCPULOADCOMPATIBILITY, NULL);
+		IDATA noCpuLoadCompatibility = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXNOCPULOADCOMPATIBILITY, NULL);
+		if (cpuLoadCompatibility > noCpuLoadCompatibility) {
+			vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_CPU_LOAD_COMPATIBILITY;
 		}
+	}
+
+	if (FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXKEEPJNIIDS, NULL) != -1) {
+		vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_ALWAYS_KEEP_JNI_IDS;
+	}
+	if (FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXNOKEEPJNIIDS, NULL) != -1) {
+		vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_NEVER_KEEP_JNI_IDS;
 	}
 
 	return JNI_OK;
@@ -4885,6 +4952,7 @@ registerCmdLineMapping(J9JavaVM* vm, char* sov_option, char* j9_option, UDATA ma
 static IDATA
 registerVMCmdLineMappings(J9JavaVM* vm)
 {
+#if JAVA_SPEC_VERSION < 21
 	char jitOpt[SMALL_STRING_BUF_SIZE];				/* Plenty big enough */
 	char* changeCursor;
 	IDATA bufLeft = 0;
@@ -4893,6 +4961,7 @@ registerVMCmdLineMappings(J9JavaVM* vm)
 	strcpy(jitOpt, SYSPROP_DJAVA_COMPILER_EQUALS);
 	bufLeft = SMALL_STRING_BUF_SIZE - strlen(jitOpt) - 1;
 	changeCursor = &jitOpt[strlen(jitOpt)];
+#endif /* JAVA_SPEC_VERSION < 21 */
 
 #ifdef J9VM_OPT_JVMTI
 	if (registerCmdLineMapping(vm, MAPOPT_JAVAAGENT_COLON, MAPOPT_AGENTLIB_INSTRUMENT_EQUALS, MAP_WITH_INCLUSIVE_OPTIONS) == RC_FAILED) {
@@ -4903,6 +4972,7 @@ registerVMCmdLineMappings(J9JavaVM* vm)
 	if (registerCmdLineMapping(vm, MAPOPT_XCOMP, MAPOPT_XJIT_COUNT0, EXACT_MAP_NO_OPTIONS) == RC_FAILED) {
 		return RC_FAILED;
 	}
+#if JAVA_SPEC_VERSION < 21
 	strncpy(changeCursor, DJCOPT_JITC, bufLeft);
 	if (registerCmdLineMapping(vm, jitOpt, VMOPT_XJIT, EXACT_MAP_NO_OPTIONS) == RC_FAILED) {
 		return RC_FAILED;
@@ -4914,6 +4984,7 @@ registerVMCmdLineMappings(J9JavaVM* vm)
 	if (registerCmdLineMapping(vm, SYSPROP_DJAVA_COMPILER_EQUALS, VMOPT_XINT, STARTSWITH_MAP_NO_OPTIONS) == RC_FAILED) {				/* any other -Djava.compiler= found is mapped to -Xint */
 		return RC_FAILED;
 	}
+#endif /* JAVA_SPEC_VERSION < 21 */
 	if (registerCmdLineMapping(vm, MAPOPT_XDISABLEJAVADUMP, MAPOPT_XDUMP_JAVA_NONE, EXACT_MAP_NO_OPTIONS) == RC_FAILED) {
 		return RC_FAILED;
 	}
@@ -6258,7 +6329,7 @@ testOptionValueOps(J9JavaVM* vm)
 #endif
 
 
-#if (defined(J9VM_OPT_SIDECAR))
+#if defined(J9VM_OPT_SIDECAR) && (JAVA_SPEC_VERSION < 21)
 /* Whine about -Djava.compiler if the option is not used correctly */
 
 static IDATA
@@ -6283,7 +6354,7 @@ checkDjavacompiler(J9PortLibrary *portLibrary, J9VMInitArgs* j9vm_args)
 	}
 	return 0;
 }
-#endif /* J9VM_OPT_SIDECAR */
+#endif /* defined(J9VM_OPT_SIDECAR) && (JAVA_SPEC_VERSION < 21) */
 
 
 static IDATA
@@ -7228,10 +7299,12 @@ protectedInitializeJavaVM(J9PortLibrary* portLibrary, void * userData)
 #endif
 
 #ifdef J9VM_OPT_SIDECAR
+#if JAVA_SPEC_VERSION < 21
 	/* Whine about -Djava.compiler after extra VM options are added, but before mappings are set */
 	if (RC_FAILED == checkDjavacompiler(portLibrary, vm->vmArgsArray)) {
 		goto error;
 	}
+#endif /* JAVA_SPEC_VERSION < 21 */
 
 	if (doParseXlogForCompatibility) {
 		if (JNI_OK != parseXlogForCompatibility(vm)) {
@@ -7387,17 +7460,23 @@ protectedInitializeJavaVM(J9PortLibrary* portLibrary, void * userData)
 		goto error;
 	}
 
-	/* If the JIT started, set the java.compiler system property and allocate the global OSR buffer */
+	/* If the JIT started, set the java.compiler/openj9.compiler system property and allocate the global OSR buffer */
 	if (NULL != vm->jitConfig) {
-		J9VMSystemProperty * property = NULL;
 #ifndef DELETEME
 		UDATA osrGlobalBufferSize = sizeof(J9JITDecompilationInfo);
 #endif
+#if JAVA_SPEC_VERSION < 21
+		J9VMSystemProperty * property = NULL;
 
 		if (J9SYSPROP_ERROR_NONE == getSystemProperty(vm, "java.compiler", &property)) {
 			setSystemProperty(vm, property, J9_JIT_DLL_NAME);
 			property->flags &= ~J9SYSPROP_FLAG_WRITEABLE;
 		}
+#else /* JAVA_SPEC_VERSION < 21 */
+		if (J9SYSPROP_ERROR_NONE != addSystemProperty(vm, "openj9.compiler", J9_JIT_DLL_NAME, 0)) {
+			goto error;
+		}
+#endif /* JAVA_SPEC_VERSION < 21 */
 #ifndef DELETEME
 		osrGlobalBufferSize += ROUND_TO(sizeof(UDATA), vm->jitConfig->osrFramesMaximumSize);
 		osrGlobalBufferSize += ROUND_TO(sizeof(UDATA), vm->jitConfig->osrScratchBufferMaximumSize);
@@ -7442,6 +7521,12 @@ protectedInitializeJavaVM(J9PortLibrary* portLibrary, void * userData)
 		}
 
 	} else {
+#if JAVA_SPEC_VERSION >= 21
+		if (J9SYSPROP_ERROR_NONE != addSystemProperty(vm, "openj9.compiler", "", 0)) {
+			goto error;
+		}
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
 		/* If there is no JIT, change the vm phase so RAS will enable level 2 tracepoints */
 		jvmPhaseChange(vm, J9VM_PHASE_NOT_STARTUP);
 	}

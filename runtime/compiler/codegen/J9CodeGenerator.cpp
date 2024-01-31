@@ -1350,7 +1350,7 @@ J9::CodeGenerator::lowerTreeIfNeeded(
    //Anchoring node to either extract register pressure(performance)
    //or ensure instanceof doesn't have a parent node of CALL (correctness)
    //
-   char *anchoringReason = "register hog";
+   const char *anchoringReason = "register hog";
    switch (node->getOpCodeValue())
       {
       // Extract heavy register pressure trees when dictated at the start of the walk
@@ -2666,16 +2666,9 @@ static TR_ExternalRelocationTargetKind getReloKindFromGuardSite(TR::CodeGenerato
       case TR_NonoverriddenGuard:
          type = TR_InlinedVirtualMethodWithNopGuard;
          break;
-      case TR_RemovedNonoverriddenGuard:
-         type = TR_InlinedVirtualMethod;
-         break;
 
       case TR_InterfaceGuard:
          type = TR_InlinedInterfaceMethodWithNopGuard;
-         break;
-      case TR_RemovedInterfaceGuard:
-         traceMsg(cg->comp(), "TR_RemovedInterfaceMethod\n");
-         type = TR_InlinedInterfaceMethod;
          break;
 
       case TR_AbstractGuard:
@@ -2706,11 +2699,6 @@ static TR_ExternalRelocationTargetKind getReloKindFromGuardSite(TR::CodeGenerato
          else
             TR_ASSERT(0,"Unexpected TR_MethodEnterExitGuard at site %p guard %p node %p\n",
                               site, site->getGuard(), site->getGuard()->getCallNode());
-         break;
-
-      case TR_RemovedProfiledGuard:
-         traceMsg(cg->comp(), "TR_ProfiledInlinedMethodRelocation\n");
-         type = TR_ProfiledInlinedMethodRelocation;
          break;
 
       case TR_ProfiledGuard:
@@ -2977,7 +2965,7 @@ void J9::CodeGenerator::addExternalRelocation(TR::Relocation *r, TR::RelocationD
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
 void J9::CodeGenerator::addProjectSpecializedRelocation(uint8_t *location, uint8_t *target, uint8_t *target2,
-      TR_ExternalRelocationTargetKind kind, char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
+      TR_ExternalRelocationTargetKind kind, const char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
    {
    (target2 == NULL) ?
          self()->addExternalRelocation(
@@ -3002,7 +2990,7 @@ void J9::CodeGenerator::addProjectSpecializedRelocation(uint8_t *location, uint8
    }
 
 void J9::CodeGenerator::addProjectSpecializedRelocation(TR::Instruction *instr, uint8_t *target, uint8_t *target2,
-      TR_ExternalRelocationTargetKind kind, char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
+      TR_ExternalRelocationTargetKind kind, const char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
    {
    (target2 == NULL) ?
          self()->addExternalRelocation(new (self()->trHeapMemory()) TR::BeforeBinaryEncodingExternalRelocation(instr, target, kind, self()),
@@ -3012,7 +3000,7 @@ void J9::CodeGenerator::addProjectSpecializedRelocation(TR::Instruction *instr, 
    }
 
 void J9::CodeGenerator::addProjectSpecializedPairRelocation(uint8_t *location, uint8_t *location2, uint8_t *target,
-      TR_ExternalRelocationTargetKind kind, char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
+      TR_ExternalRelocationTargetKind kind, const char *generatingFileName, uintptr_t generatingLineNumber, TR::Node *node)
    {
    self()->addExternalRelocation(new (self()->trHeapMemory()) TR::ExternalOrderedPair32BitRelocation(location, location2, target, kind, self()),
          generatingFileName, generatingLineNumber, node);

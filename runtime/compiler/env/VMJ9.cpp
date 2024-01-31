@@ -4247,10 +4247,10 @@ TR_J9VMBase::persistMHJ2IThunk(void *thunk)
    }
 
 static char *
-getJ2IThunkSignature(char *invokeHandleSignature, uint32_t signatureLength, int argsToSkip, char *description, TR::Compilation *comp)
+getJ2IThunkSignature(char *invokeHandleSignature, uint32_t signatureLength, int argsToSkip, const char *description, TR::Compilation *comp)
    {
    char *argsToCopy;
-   for (argsToCopy = invokeHandleSignature+1; argsToSkip > 0; argsToSkip--)
+   for (argsToCopy = invokeHandleSignature + 1; argsToSkip > 0; argsToSkip--)
       argsToCopy = nextSignatureArgument(argsToCopy);
    uint32_t lengthToCopy = signatureLength - (argsToCopy - invokeHandleSignature);
 
@@ -4263,7 +4263,7 @@ getJ2IThunkSignature(char *invokeHandleSignature, uint32_t signatureLength, int 
    }
 
 static TR::Node *
-getEquivalentVirtualCallNode(TR::Node *callNode, int argsToSkip, char *description, TR::Compilation *comp)
+getEquivalentVirtualCallNode(TR::Node *callNode, int argsToSkip, const char *description, TR::Compilation *comp)
    {
    TR::Node *j2iThunkCall = TR::Node::createWithSymRef(callNode, callNode->getOpCodeValue(), callNode->getNumChildren() - argsToSkip + 1, callNode->getSymbolReference());
    j2iThunkCall->setChild(0, callNode->getFirstChild()); // first child should be vft pointer but we don't have one
@@ -4400,7 +4400,7 @@ TR_J9VMBase::mutableCallSite_findOrCreateBypassLocation(uintptr_t mutableCallSit
    return mutableCallSite_bypassLocation(mutableCallSite);
    }
 
-static TR_OpaqueMethodBlock *findClosestArchetype(TR_OpaqueClassBlock *clazz, char *name, char *signature, char *currentArgument, TR_FrontEnd *fe, J9VMThread *vmThread)
+static TR_OpaqueMethodBlock *findClosestArchetype(TR_OpaqueClassBlock *clazz, const char *name, const char *signature, char *currentArgument, TR_FrontEnd *fe, J9VMThread *vmThread)
    {
    // NOTE: signature will be edited in-place
 
@@ -4457,7 +4457,7 @@ static TR_OpaqueMethodBlock *findClosestArchetype(TR_OpaqueClassBlock *clazz, ch
    }
 
 TR_OpaqueMethodBlock *
-TR_J9VMBase::lookupArchetype(TR_OpaqueClassBlock *clazz, char *name, char *signature)
+TR_J9VMBase::lookupArchetype(TR_OpaqueClassBlock *clazz, const char *name, const char *signature)
    {
    // Find the best match for the signature.  Start by appending an "I"
    // placeholder argument.  findClosestArchetype will progressively truncate
@@ -4583,15 +4583,14 @@ TR::KnownObjectTable::Index TR_J9VMBase::mutableCallSiteEpoch(TR::Compilation *c
    if (knot == NULL)
       return TR::KnownObjectTable::UNKNOWN;
 
-   // getVolatileReferenceField() doesn't accept const char*
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-   char *fieldName = "target"; // There is no separate epoch field.
-#else
-   char *fieldName = "epoch";
-#endif
-
+   // There is no separate epoch field
    uintptr_t mh = getVolatileReferenceField(
-      mutableCallSite, fieldName, "Ljava/lang/invoke/MethodHandle;");
+      mutableCallSite, "target", "Ljava/lang/invoke/MethodHandle;");
+#else
+   uintptr_t mh = getVolatileReferenceField(
+      mutableCallSite, "epoch", "Ljava/lang/invoke/MethodHandle;");
+#endif
 
    return mh == 0 ? TR::KnownObjectTable::UNKNOWN : knot->getOrCreateIndex(mh);
    }
@@ -5035,13 +5034,107 @@ TR_J9VMBase::getVMIndexOffset()
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 TR::KnownObjectTable::Index
-TR_J9VMBase::getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(TR::Compilation *comp, TR::KnownObjectTable::Index mhIndex, char *fieldName)
+TR_J9VMBase::getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(TR::Compilation *comp, TR::KnownObjectTable::Index mhIndex, const char *fieldName)
    {
    TR::VMAccessCriticalSection dereferenceKnownObjectField(this);
    TR::KnownObjectTable *knot = comp->getKnownObjectTable();
    uintptr_t mhObject = knot->getPointer(mhIndex);
    uintptr_t mnObject = getReferenceField(mhObject, fieldName, "Ljava/lang/invoke/MemberName;");
    return knot->getOrCreateIndex(mnObject);
+   }
+
+TR::KnownObjectTable::Index
+TR_J9VMBase::getMethodHandleTableEntryIndex(TR::Compilation *comp, TR::KnownObjectTable::Index vhIndex, TR::KnownObjectTable::Index adIndex)
+   {
+   TR::VMAccessCriticalSection getMethodHandleTableEntryIndex(this);
+   TR::KnownObjectTable::Index result = TR::KnownObjectTable::UNKNOWN;
+   TR::KnownObjectTable *knot = comp->getKnownObjectTable();
+   if (!knot) return result;
+
+   uintptr_t varHandleObj = knot->getPointer(vhIndex);
+   uintptr_t accessDescriptorObj = knot->getPointer(adIndex);
+   uintptr_t mhTable = 0;
+   uintptr_t mtTable = 0;
+#if JAVA_SPEC_VERSION <= 17
+   uintptr_t typesAndInvokersObj = getReferenceField(varHandleObj,
+                                                      "typesAndInvokers",
+                                                      "Ljava/lang/invoke/VarHandle$TypesAndInvokers;");
+   if (!typesAndInvokersObj) return result;
+
+   mhTable = getReferenceField(typesAndInvokersObj,
+                                 "methodHandle_table",
+                                 "[Ljava/lang/invoke/MethodHandle;");
+
+   mtTable = getReferenceField(typesAndInvokersObj,
+                                    "methodType_table",
+                                    "[Ljava/lang/invoke/MethodType;");
+#else
+   mhTable = getReferenceField(varHandleObj,
+                                 "methodHandleTable",
+                                 "[Ljava/lang/invoke/MethodHandle;");
+
+   mtTable = getReferenceField(varHandleObj,
+                                 "methodTypeTable",
+                                 "[Ljava/lang/invoke/MethodType;");
+#endif // JAVA_SPEC_VERSION <= 17
+   if (!mhTable || !mtTable) return result;
+
+#if JAVA_SPEC_VERSION >= 17
+   // if the VarHandle has invokeExact behaviour, then the MethodType in
+   // AccessDescriptor.symbolicMethodTypeExact field must match the corresponding
+   // entry in the VarHandle's method type table, failing which
+   // WrongMethodTypeException should be thrown.
+   int32_t varHandleExactFieldOffset =
+         getInstanceFieldOffset(getObjectClass(varHandleObj), "exact", "Z");
+   int32_t varHandleHasInvokeExactBehaviour = getInt32FieldAt(varHandleObj, varHandleExactFieldOffset);
+   if (varHandleHasInvokeExactBehaviour)
+      {
+      int32_t mtEntryIndex = getInt32Field(accessDescriptorObj, "type");
+      uintptr_t methodTypeTableEntryObj = getReferenceElement(mtTable, mtEntryIndex);
+      if (!methodTypeTableEntryObj) return result;
+      uintptr_t symbolicMTExactObj = getReferenceField(accessDescriptorObj,
+                                                         "symbolicMethodTypeExact",
+                                                         "Ljava/lang/invoke/MethodType;");
+      if (methodTypeTableEntryObj != symbolicMTExactObj)
+         return result;
+      }
+#endif // JAVA_SPEC_VERSION >= 17
+
+   int32_t mhEntryIndex = getInt32Field(accessDescriptorObj, "mode");
+   uintptr_t methodHandleObj = getReferenceElement(mhTable, mhEntryIndex);
+
+   if (!methodHandleObj) return result;
+
+   // For the MethodHandle obtained from the VarHandle's MH table, the type must match
+   // the MethodType in AccessDescriptor.symbolicMethodTypeInvoker field, failing which
+   // the MH obtained cannot be used directly without asType conversion
+   uintptr_t methodTypeObj = getReferenceField(methodHandleObj,
+                                                "type",
+                                                "Ljava/lang/invoke/MethodType;");
+   uintptr_t symbolicMTInvokerObj = getReferenceField(accessDescriptorObj,
+                                                      "symbolicMethodTypeInvoker",
+                                                      "Ljava/lang/invoke/MethodType;");
+   if (methodTypeObj != symbolicMTInvokerObj)
+      return result;
+
+   result = knot->getOrCreateIndex(methodHandleObj);
+
+   return result;
+   }
+
+
+TR::KnownObjectTable::Index
+TR_J9VMBase::getDirectVarHandleTargetIndex(TR::Compilation* comp, TR::KnownObjectTable::Index vhIndex)
+   {
+   // Since IndirectVarHandle.asDirect can override VarHandle.asDirect, an exact type check here is necessary
+   const char * varHandleClassName = "java/lang/invoke/VarHandle";
+   TR_OpaqueClassBlock * varHandleClass =
+      getSystemClassFromClassName(varHandleClassName, strlen(varHandleClassName));
+   TR_OpaqueClassBlock * objectClass = getObjectClassFromKnownObjectIndex(comp, vhIndex);
+   if (NULL == varHandleClass || NULL == objectClass || varHandleClass != objectClass)
+      return TR::KnownObjectTable::UNKNOWN;
+
+   return vhIndex;
    }
 
 bool
@@ -5974,7 +6067,7 @@ void revertMethodToInterpreted(J9Method * method)
 
 struct TrustedClass
    {
-   char   * name;
+   const char   * name;
    int32_t length;
    int32_t argNum;
    };
@@ -6324,7 +6417,7 @@ TR_J9VMBase::getBytecodePC(TR_OpaqueMethodBlock *method, TR_ByteCodeInfo &bcInfo
 //whose signatures are given in methodSig. methodCount is the number of methods.
 //Returns the number of methods found in the class
 //This function handles static and virtual functions only.
-int TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp, TR::ResolvedMethodSymbol* owningMethodSym, char* classSig, char** methodSig, TR::SymbolReference** symRefs, int methodCount)
+int TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation *comp, TR::ResolvedMethodSymbol *owningMethodSym, const char *classSig, const char **methodSig, TR::SymbolReference **symRefs, int methodCount)
    {
    TR_OpaqueClassBlock *c = getClassFromSignature(classSig,
                                                   strlen(classSig),
@@ -6389,7 +6482,7 @@ int TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp, TR::ResolvedMet
 //Given a class signature and a method signature returns a symref for that method.
 //If the method is not resolved or doesn't exist in that class, it returns NULL
 //This function handles static and virtual functions only.
-TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp, TR::ResolvedMethodSymbol* owningMethodSym, char* classSig, char* methodSig)
+TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation *comp, TR::ResolvedMethodSymbol *owningMethodSym, const char *classSig, const char *methodSig)
    {
    TR::SymbolReference* symRef = NULL;
    int numMethodsFound = findOrCreateMethodSymRef(comp, owningMethodSym, classSig, &methodSig, &symRef, 1);
@@ -6400,15 +6493,15 @@ TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp
 //returns a symref for that method. If the method is not resolved or doesn't exist
 //in that class, it returns NULL
 //This function handles static and virtual functions only.
-TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp, TR::ResolvedMethodSymbol* owningMethodSym, char* methodSig) {
+TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation *comp, TR::ResolvedMethodSymbol *owningMethodSym, const char *methodSig) {
    int methodSigLen = strlen(methodSig);
-   char* classSig = (char*)comp->trMemory()->allocateStackMemory(sizeof(char)*methodSigLen);
-   char* separator = strchr(methodSig, '.');
+   char *classSig = (char *)comp->trMemory()->allocateStackMemory(sizeof(char) * methodSigLen);
+   const char *separator = strchr(methodSig, '.');
    TR_ASSERT(separator, ". not found in method name");
    int classSigLen = separator - methodSig;
    strncpy(classSig, methodSig, classSigLen);
    classSig[classSigLen] = 0;
-   TR::SymbolReference* result = findOrCreateMethodSymRef(comp, owningMethodSym, classSig, methodSig);
+   TR::SymbolReference *result = findOrCreateMethodSymRef(comp, owningMethodSym, classSig, methodSig);
    return result;
 }
 
@@ -6416,7 +6509,7 @@ TR::SymbolReference* TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp
 //gives symrefs for those methods. The number of input methods are given in methodCount.
 //The function returns the number of methods found
 //this function handles static and virtual functions only
-int TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation* comp, TR::ResolvedMethodSymbol* owningMethodSym, char** methodSig, TR::SymbolReference** symRefs, int methodCount) {
+int TR_J9VMBase::findOrCreateMethodSymRef(TR::Compilation *comp, TR::ResolvedMethodSymbol *owningMethodSym, const char **methodSig, TR::SymbolReference **symRefs, int methodCount) {
    int numMethodsFound = 0;
    for (int i = 0; i < methodCount; i++) {
       if (!methodSig[i]) continue;
@@ -6786,7 +6879,7 @@ TR_J9VMBase::getClassFlagsValue(TR_OpaqueClassBlock * classPointer)
 #define LOOKUP_OPTION_NO_THROW 8192
 
 TR_OpaqueMethodBlock *
-TR_J9VM::getMethodFromName(char *className, char *methodName, char *signature)
+TR_J9VM::getMethodFromName(const char *className, const char *methodName, const char *signature)
    {
    TR::VMAccessCriticalSection getMethodFromName(this);
    TR_OpaqueClassBlock *methodClass = getSystemClassFromClassName(className, strlen(className), true);
@@ -6820,7 +6913,7 @@ TR_J9VM::getMethodFromName(char *className, char *methodName, char *signature)
  *     Only methods visible to the callingClass will be returned.
  */
 TR_OpaqueMethodBlock *
-TR_J9VMBase::getMethodFromClass(TR_OpaqueClassBlock * methodClass, char * methodName, char * signature, TR_OpaqueClassBlock * callingClass)
+TR_J9VMBase::getMethodFromClass(TR_OpaqueClassBlock *methodClass, const char *methodName, const char *signature, TR_OpaqueClassBlock *callingClass)
    {
    J9JNINameAndSignature nameAndSig;
    nameAndSig.name = methodName;
@@ -9415,7 +9508,7 @@ bool
 TR_J9VMBase::isSnapshotModeEnabled()
    {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
-   return getJ9JITConfig()->javaVM->internalVMFunctions->isCRIUSupportEnabled(vmThread());
+   return getJ9JITConfig()->javaVM->internalVMFunctions->isCRaCorCRIUSupportEnabled(vmThread());
 #else /* defined(J9VM_OPT_CRIU_SUPPORT) */
    return false;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */

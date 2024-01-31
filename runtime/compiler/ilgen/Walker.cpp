@@ -780,7 +780,7 @@ TR_J9ByteCodeIlGenerator::placeholderWithDummySignature()
    }
 
 TR::SymbolReference *
-TR_J9ByteCodeIlGenerator::placeholderWithSignature(char *prefix, int prefixLength, char *middle, int middleLength, char *suffix, int suffixLength)
+TR_J9ByteCodeIlGenerator::placeholderWithSignature(const char *prefix, int prefixLength, const char *middle, int middleLength, const char *suffix, int suffixLength)
    {
    return symRefWithArtificialSignature(placeholderWithDummySignature(),
       ".#.#.#",
@@ -790,7 +790,7 @@ TR_J9ByteCodeIlGenerator::placeholderWithSignature(char *prefix, int prefixLengt
    }
 
 TR::SymbolReference *
-TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *original, char *effectiveSigFormat, ...)
+TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *original, const char *effectiveSigFormat, ...)
    {
    TR::StackMemoryRegion stackMemoryRegion(*comp()->trMemory());
 
@@ -804,14 +804,14 @@ TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *ori
    return result;
    }
 
-static int32_t processArtificialSignature(char *result, char *format, va_list args)
+static int32_t processArtificialSignature(char *result, const char *format, va_list args)
    {
    int32_t resultLength = 0;
    char *cur = result;
    for (int32_t i = 0; format[i]; i++)
       {
-      int32_t length=-1;
-      char   *startChar=NULL;
+      int32_t length = -1;
+      const char *startChar = NULL;
       if (format[i] == '.') // period is the ONLY character (besides null) that can never appear in a method signature
          {
          // Formatting code
@@ -877,7 +877,7 @@ static int32_t processArtificialSignature(char *result, char *format, va_list ar
                // case, proceed on the assumption that the period was a literal character;
                // if TR has a bug, we will very likely crash soon enough anyway.
                //
-               startChar = format+i-1; // back up to the period
+               startChar = format + i - 1; // back up to the period
                length = 2;
                break;
             }
@@ -885,7 +885,7 @@ static int32_t processArtificialSignature(char *result, char *format, va_list ar
       else
          {
          // Literal character
-         startChar = format+i;
+         startChar = format + i;
          length = 1;
          }
 
@@ -901,7 +901,7 @@ static int32_t processArtificialSignature(char *result, char *format, va_list ar
    return resultLength;
    }
 
-char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind, char *format, ...)
+char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind, const char *format, ...)
    {
    va_list args;
    va_start(args, format);
@@ -910,7 +910,7 @@ char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind,
    return result;
    }
 
-char *TR_J9ByteCodeIlGenerator::vartificialSignature(TR_AllocationKind allocKind, char *format, va_list args)
+char *TR_J9ByteCodeIlGenerator::vartificialSignature(TR_AllocationKind allocKind, const char *format, va_list args)
    {
    // Compute size
    //
@@ -5665,7 +5665,7 @@ TR_J9ByteCodeIlGenerator::loadFromCP(TR::DataType type, int32_t cpIndex)
             // for unresolved primitive the resolve helper only returns an autobox'd object).
             if (isCondyPrimitive)
                {
-               char *autoboxClassSig = NULL;
+               const char *autoboxClassSig = NULL;
                int32_t autoboxClassSigLength = 0;
                switch (returnTypeUtf8Data[0])
                   {
@@ -5777,7 +5777,7 @@ TR_J9ByteCodeIlGenerator::loadFromCP(TR::DataType type, int32_t cpIndex)
             // Condy is primitive type, emit indirect load of the value field from the autobox object.
             if (isCondyPrimitive)
                {
-               char *recogFieldName = NULL;
+               const char *recogFieldName = NULL;
                TR::Symbol::RecognizedField valueRecogField= TR::Symbol::UnknownField;
                TR::DataType dt = TR::NoType;
                switch (returnTypeUtf8Data[0])
@@ -7197,14 +7197,44 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
    char * fieldNamePrefix = getTopLevelPrefixForFlattenedFields(owningMethod, cpIndex, prefixLen, comp()->trMemory()->currentStackRegion());
 
    TR_OpaqueClassBlock * containingClass = owningMethod->definingClassFromCPFieldRef(comp(), cpIndex, _methodSymbol->isStatic());
-   const TR::TypeLayout *containingClassLayout = comp()->typeLayout(containingClass);
+   const TR::TypeLayout * containingClassLayout = comp()->typeLayout(containingClass);
    size_t fieldCount = containingClassLayout->count();
 
    TR::Node * value = pop();
    TR::Node * address = pop();
 
+   if (fieldCount == 0)
+      {
+      if (comp()->getOption(TR_TraceILGen))
+         {
+         traceMsg(comp(), "%s: cpIndex %d fieldCount 0 value n%dn isNonNull %d address n%dn isNonNull %d\n", __FUNCTION__, cpIndex,
+            value->getGlobalIndex(), value->isNonNull(), address->getGlobalIndex(), address->isNonNull());
+         }
+
+      // If the field count is greater than zero, the NULLCHKs will be added in the process of
+      // generating IL for the loadInstance and storeInstance below.
+      // If the field count is zero, the NULLCHKs on the references for the value and the target
+      // of the assignments need to be added here.
+
+      // Null value cannot be stored into a field whose type is null-restricted value class
+      if (!value->isNonNull() && owningMethod->isFieldNullRestricted(comp(), cpIndex, false /* isStatic */, true /* isStore */))
+         {
+         TR::Node * passThruNode = TR::Node::create(TR::PassThrough, 1, value);
+         genTreeTop(genNullCheck(passThruNode));
+         }
+
+      // If objectref is null, the putfield instruction is expected to throw a NullPointerException
+      if (!address->isNonNull())
+         {
+         TR::Node * passThruNode = TR::Node::create(TR::PassThrough, 1, address);
+         genTreeTop(genNullCheck(passThruNode));
+         }
+
+      return;
+      }
+
    int len;
-   const char *fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
+   const char * fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
    TR_OpaqueClassBlock * fieldClass = fej9()->getClassFromSignature(fieldClassChars, len, owningMethod);
 
    for (size_t idx = 0; idx < fieldCount; idx++)
@@ -7471,9 +7501,25 @@ TR_J9ByteCodeIlGenerator::storeArrayElement(TR::DataType dataType, TR::ILOpCodes
    // we won't have flattening, so no call to flattenable array element access
    // helper is needed.
    //
+
+   bool generateNonHelper = false;
+
    if (TR::Compiler->om.areFlattenableValueTypesEnabled() &&
        !TR::Compiler->om.canGenerateArraylets() &&
        dataType == TR::Address)
+      {
+      if (!TR::Compiler->om.isValueTypeArrayFlatteningEnabled() &&
+          _methodSymbol->skipNonNullableArrayNullStoreCheck())
+         {
+         generateNonHelper = false;
+         }
+      else
+         {
+         generateNonHelper = true;
+         }
+      }
+
+   if (generateNonHelper)
       {
       TR::Node* elementIndex = pop();
       TR::Node* arrayBaseAddress = pop();

@@ -49,7 +49,6 @@ _X(JVM_ConstantPoolGetUTF8At,JNICALL,true,jstring,JNIEnv *env, jobject anObject,
 _X(JVM_CurrentClassLoader,JNICALL,true,jobject,JNIEnv *env)
 _X(JVM_CurrentLoadedClass,JNICALL,true,jclass,JNIEnv *env)
 _X(JVM_CurrentTimeMillis,JNICALL,true,jlong,JNIEnv *env, jint unused1)
-_X(JVM_CX8Field,JNICALL,true,jboolean,JNIEnv *env, jobject obj, jfieldID field, jlong oldval, jlong newval)
 _X(JVM_DefineClassWithSource,JNICALL,true,jclass,JNIEnv *env, const char *className, jobject classLoader, const jbyte *classArray, jsize length, jobject domain, const char *source)
 _X(JVM_DumpThreads,JNICALL,true,jobjectArray,JNIEnv *env, jclass thread, jobjectArray threadArray)
 _X(JVM_ExpandFdTable,JNICALL,true,jint,jint fd)
@@ -110,7 +109,6 @@ _X(JVM_Read,JNICALL,true,jint,jint descriptor, char *buffer, jint bytesToRead)
 _X(JVM_Recv,JNICALL,true,jint,jint descriptor, char *buffer, jint length, jint flags)
 _X(JVM_RecvFrom,JNICALL,true,jint,jint descriptor, char *buffer, jint length, jint flags, struct sockaddr *fromAddr, int *fromLength)
 _X(JVM_RegisterSignal,JNICALL,true,void *,jint sigNum, void *handler)
-_X(JVM_RegisterUnsafeMethods,JNICALL,true,void,JNIEnv *env, jclass unsafeClz)
 _X(JVM_Send,JNICALL,true,jint,jint descriptor, const char *buffer, jint numBytes, jint flags)
 _X(JVM_SendTo,JNICALL,true,jint,jint descriptor, const char *buffer, jint length, jint flags, const struct sockaddr *toAddr, int toLength)
 _X(JVM_SetLength,JNICALL,true,jint,jint fd, jlong length)
@@ -119,7 +117,8 @@ _X(JVM_Socket,JNICALL,true,jint,jint domain, jint type, jint protocol)
 _X(JVM_SocketAvailable,JNICALL,true,jint,jint descriptor, jint *result)
 _X(JVM_SocketClose,JNICALL,true,jint,jint descriptor)
 _X(JVM_Startup,JNICALL,true,jint,JavaVM *vm, JNIEnv *env)
-_X(JVM_SupportsCX8,JNICALL,true,jboolean,void)
+_IF([JAVA_SPEC_VERSION < 22],
+	[_X(JVM_SupportsCX8,JNICALL,true,jboolean,void)])
 _X(JVM_Sync,JNICALL,true,jint,jint descriptor)
 _X(JVM_Timeout,JNICALL,true,jint,jint descriptor, jint timeout)
 _X(JVM_TotalMemory,JNICALL,true,jlong,void)
@@ -411,8 +410,10 @@ _IF([(19 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 21)],
 	[_X(JVM_VirtualThreadUnmountEnd, JNICALL, false, void, JNIEnv *env, jobject thread, jboolean lastUnmount)])
 _IF([JAVA_SPEC_VERSION >= 20],
 	[_X(JVM_GetClassFileVersion, JNICALL, false, jint, JNIEnv *env, jclass cls)])
-_IF([JAVA_SPEC_VERSION >= 20],
+_IF([(20 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 23)],
 	[_X(JVM_VirtualThreadHideFrames, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide)])
+_IF([JAVA_SPEC_VERSION >= 23],
+	[_X(JVM_VirtualThreadHideFrames, JNICALL, false, void, JNIEnv *env, jclass clz, jboolean hide)])
 _IF([JAVA_SPEC_VERSION >= 21],
 	[_X(JVM_IsForeignLinkerSupported, JNICALL, false, jboolean, void)])
 _IF([JAVA_SPEC_VERSION >= 21],
@@ -429,3 +430,7 @@ _IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
 	[_X(JVM_IsValhallaEnabled, JNICALL, false, jboolean, void)])
 _IF([JAVA_SPEC_VERSION >= 22],
 	[_X(JVM_ExpandStackFrameInfo, JNICALL, false, void, JNIEnv *env, jobject object)])
+_IF([JAVA_SPEC_VERSION == 22],
+	[_X(JVM_VirtualThreadDisableSuspend, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean enter)])
+_IF([JAVA_SPEC_VERSION >= 23],
+	[_X(JVM_VirtualThreadDisableSuspend, JNICALL, false, void, JNIEnv *env, jclass clz, jboolean enter)])
