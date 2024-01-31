@@ -80,8 +80,7 @@ public class SoftmxTest {
 		if (1 == restore_type) {
 			optionsContents += "\n";
 			optionsContents += "-Xsoftmx";
-			Path filePath
-            	= Paths.get("/sys/fs/cgroup/memory", "memory.limit_in_bytes");
+			Path filePath = Paths.get("/sys/fs/cgroup/memory", "memory.limit_in_bytes");
 			String content = "";
 			try
 			{

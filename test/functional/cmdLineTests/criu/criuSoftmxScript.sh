@@ -100,7 +100,7 @@ then
     echo "reach thread error 1"
     exit 1
 fi
-if grep -q "do not match expected" criuOutput 
+if grep -q "do not match expected" criuOutput
 then
     echo "reach thread error 2"
     exit 1
