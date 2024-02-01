@@ -80,7 +80,7 @@ public class SoftmxTest {
 		if (1 == restore_type) {
 			optionsContents += "\n";
 			optionsContents += "-Xsoftmx";
-			long memorySize = ((com.ibm.lang.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalMemorySize();
+			long memorySize = ((com.ibm.lang.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemory();
 			optionsContents = optionsContents + Long.toString(memorySize/1024/8*3) + "k";
 		}
 		Path optionsFilePath = CRIUTestUtils.createOptionsFile("options", optionsContents);
