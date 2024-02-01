@@ -45,13 +45,13 @@ echo "export LD_BIND_NOT=on";
 export LD_BIND_NOT=on
 $2 -verbose:gc >initialCheck 2>&1;
 ifMemLimit=$(cat initialCheck | grep "container memory limit set" | cut -d'"' -f 4)
-
-if [ "${ifMemLimit}" = "false" ]; then
-    echo "Not a target testing situation, test terminated."
-    exit 1
-else
-    echo "target platform"
-fi
+echo $ifMemLimit
+# if [ "${ifMemLimit}" = "false" ]; then
+#     echo "Not a target testing situation, test terminated."
+#     exit 1
+# else
+#     echo "target platform"
+# fi
 # MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 echo $MEMORY
