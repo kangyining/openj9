@@ -55,6 +55,10 @@ echo $ifMemLimit
 # MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 echo $MEMORY
+FILE=/sys/fs/cgroup/memory/memory.limit_in_bytes
+if test -f "$FILE"; then
+    echo "$FILE exists."
+fi
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
     XDynamicHeapAdjustment="-XX:+dynamicHeapAdjustmentForRestore"
