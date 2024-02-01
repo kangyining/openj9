@@ -44,12 +44,13 @@ export GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2
 echo "export LD_BIND_NOT=on";
 export LD_BIND_NOT=on
 $2 -verbose:gc >initialCheck 2>&1;
-ifContainer=$(cat initialCheck | grep "using container" | cut -d'"' -f 4)
 ifMemLimit=$(cat initialCheck | grep "container memory limit set" | cut -d'"' -f 4)
 
-if [ "${ifContainer}" = "false" ] || [ "${ifMemLimit}" = "false" ]; then
+if [ "${ifMemLimit}" = "false" ]; then
     echo "Not a target testing situation, test terminated."
     exit 1
+else
+    echo "target platform"
 fi
 # MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
