@@ -56,10 +56,13 @@ MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEMORY2=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 echo $MEMORY
 echo $MEMORY2
-FILE=/sys/fs/cgroup/memory/memory.limit_in_bytes
-if test -f "$FILE"; then
-    echo "$FILE exists."
+
+if [ "$((${MEMORY2}))" -ne 9223372036854771712 ]; then
+    MEMORY=$MEMORY2
+else
+    MEMORY=$((1024*MEMORY))
 fi
+
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
     XDynamicHeapAdjustment="-XX:+dynamicHeapAdjustmentForRestore"
