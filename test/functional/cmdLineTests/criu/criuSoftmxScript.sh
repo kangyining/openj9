@@ -57,7 +57,7 @@ MEMORY2=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
 echo $MEMORY
 echo $MEMORY2
 
-if [ "$((${MEMORY2}))" -ne 9223372036854771712 ] && [[ -z "$MEMORY2" ]]; then
+if [ "$((${MEMORY2}))" -ne 9223372036854771712 ]; then
     MEMORY=$MEMORY2
 else
     MEMORY=$((1024*MEMORY))
