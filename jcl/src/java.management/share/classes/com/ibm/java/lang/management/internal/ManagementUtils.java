@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
-/*[IF !Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION == 8]*/
 import java.lang.management.ManagementFactory;
 import java.lang.management.PlatformManagedObject;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.logging.LogManager;
 import com.ibm.lang.management.internal.ExtendedMemoryMXBeanImpl;
-/*[ENDIF] !Sidecar19-SE*/
+/*[ENDIF] JAVA_SPEC_VERSION == 8*/
 
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
@@ -773,6 +773,12 @@ public final class ManagementUtils {
 			create(OPENJ9_DIAGNOSTICS_MXBEAN_NAME, openj9.lang.management.internal.OpenJ9DiagnosticsMXBeanImpl.getInstance())
 				.addInterface(openj9.lang.management.OpenJ9DiagnosticsMXBean.class)
 				.validateAndRegister();
+
+/*[IF CRAC_SUPPORT]*/
+			create(jdk.crac.management.CRaCMXBean.CRAC_MXBEAN_NAME, jdk.crac.management.CRaCMXBeanImpl.getInstance())
+				.addInterface(jdk.crac.management.CRaCMXBean.class)
+				.validateAndRegister();
+/*[ENDIF] CRAC_SUPPORT */
 
 			// Register standard optional beans for JDK8.
 			create(ManagementFactory.COMPILATION_MXBEAN_NAME, CompilationMXBeanImpl.getInstance())

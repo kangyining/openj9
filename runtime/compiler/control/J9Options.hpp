@@ -125,7 +125,9 @@ enum ExternalOptions
    XXminusJITServerAOTCacheDelayMethodRelocation = 69,
    XXplusIProfileDuringStartupPhase            = 70,
    XXminusIProfileDuringStartupPhase           = 71,
-   TR_NumExternalOptions                       = 72
+   XXplusJITServerAOTCacheIgnoreLocalSCC       = 72,
+   XXminusJITServerAOTCacheIgnoreLocalSCC      = 73,
+   TR_NumExternalOptions                       = 74
    };
 
 class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
@@ -147,7 +149,14 @@ class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
 
    Options(TR::Options &other) : OMR::OptionsConnector(other) {}
 
+   enum FSDInitStatus
+      {
+      FSDInit_Error,
+      FSDInit_NotInitialized,
+      FSDInit_Initialized
+      };
 
+   static FSDInitStatus _fsdInitStatus;
 
    static bool _doNotProcessEnvVars;
 
@@ -611,6 +620,9 @@ class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
    bool  showPID();
    void openLogFiles(J9JITConfig *jitConfig);
 
+   bool isFSDNeeded(J9JavaVM *javaVM, J9HookInterface **vmHooks);
+   FSDInitStatus initializeFSDIfNeeded(J9JavaVM *javaVM, J9HookInterface **vmHooks, bool &doAOT);
+
 #if defined(J9VM_OPT_JITSERVER)
    void setupJITServerOptions();
 
@@ -622,6 +634,12 @@ class OMR_EXTENSIBLE Options : public OMR::OptionsConnector
    void setLogFileForClientOptions(int suffixNumber = 0);
    void closeLogFileForClientOptions();
 #endif /* defined(J9VM_OPT_JITSERVER) */
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+   static FSDInitStatus resetFSD(J9JavaVM *vm, J9VMThread *vmThread, bool &doAOT);
+   void resetFSDOptions();
+   void resetFSDOptionsForAll();
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
    private:
 

@@ -41,7 +41,7 @@ public:
    virtual bool isMostlyFull() { return false; }
 
    virtual bool canRememberClass(TR_OpaqueClassBlock *clazz) { return false; }
-   virtual uintptr_t *rememberClass(TR_OpaqueClassBlock *clazz, const AOTCacheClassChainRecord **classChainRecord = NULL) { return NULL; }
+   virtual uintptr_t rememberClass(TR_OpaqueClassBlock *clazz, const AOTCacheClassChainRecord **classChainRecord = NULL) { return TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET; }
    virtual bool classMatchesCachedVersion(TR_OpaqueClassBlock *clazz, uintptr_t *chainData = NULL) { return false; }
 
    virtual void *pointerFromOffsetInSharedCache(uintptr_t offset) { return NULL; }
@@ -52,10 +52,13 @@ public:
    virtual J9ROMClass *romClassFromOffsetInSharedCache(uintptr_t offset) { return NULL; }
    virtual uintptr_t offsetInSharedCacheFromROMClass(J9ROMClass *romClass) { return 0; }
    virtual bool isROMClassInSharedCache(J9ROMClass *romClass, uintptr_t *cacheOffset = NULL) { return false; }
+   virtual uintptr_t offsetInSharedCacheFromClass(TR_OpaqueClassBlock *clazz) { return 0; }
+   virtual bool isClassInSharedCache(TR_OpaqueClassBlock *clazz, uintptr_t *cacheOffset = NULL) { return false; }
    virtual bool isROMClassOffsetInSharedCache(uintptr_t offset, J9ROMClass **romClassPtr = NULL) { return false; }
 
    virtual J9ROMMethod *romMethodFromOffsetInSharedCache(uintptr_t offset) { return NULL; }
-   virtual uintptr_t offsetInSharedCacheFromROMMethod(J9ROMMethod *romMethod) { return 0; }
+   virtual uintptr_t offsetInSharedCacheFromROMMethod(J9ROMMethod *romMethod) { return INVALID_ROM_METHOD_OFFSET; }
+   virtual bool isMethodInSharedCache(TR_OpaqueMethodBlock *method, TR_OpaqueClassBlock *definingClass, uintptr_t *cacheOffset = NULL) { return false; }
    virtual bool isROMMethodInSharedCache(J9ROMMethod *romMethod, uintptr_t *cacheOffset = NULL) { return false; }
    virtual bool isROMMethodOffsetInSharedCache(uintptr_t offset, J9ROMMethod **romMethodPtr = NULL) { return false; }
 
@@ -64,12 +67,21 @@ public:
    virtual bool isPtrToROMClassesSectionInSharedCache(void *ptr, uintptr_t *cacheOffset = NULL) { return false; }
    virtual bool isOffsetOfPtrToROMClassesSectionInSharedCache(uintptr_t offset, void **ptr = NULL) { return false; }
 
+   virtual void *lookupClassLoaderAssociatedWithClassChain(void *chainData) {return NULL; }
    virtual TR_OpaqueClassBlock *lookupClassFromChainAndLoader(uintptr_t *chainData, void *loader) { return NULL; }
 
    virtual uintptr_t getClassChainOffsetIdentifyingLoader(TR_OpaqueClassBlock *clazz, uintptr_t **classChain = NULL) { return 0; }
 
    void setPersistentClassLoaderTable(TR_PersistentClassLoaderTable *table) { _persistentClassLoaderTable = table; }
    TR_PersistentClassLoaderTable *persistentClassLoaderTable() { return _persistentClassLoaderTable; }
+
+   // A uintptr_t value that can never represent a class chain in an SCC. Used to check the return value of rememberClass,
+   // and also useful to represent "class chain not present" in places where a class chain offset is optional.
+   static const uintptr_t INVALID_CLASS_CHAIN_OFFSET = 0;
+
+   // A uintptr_t value that can never represent a ROM method in an SCC. Used to check the return value of isMethodInSharedCache
+   // and related methods.
+   static const uintptr_t INVALID_ROM_METHOD_OFFSET = 1;
 
 private:
 

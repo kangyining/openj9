@@ -212,6 +212,7 @@ const char *compilationErrorNames[]={
    "compilationStreamVersionIncompatible",                 // compilationFirstJITServerFailure + 3 = 51
    "compilationStreamInterrupted",                         // compilationFirstJITServerFailure + 4 = 52
    "aotCacheDeserializationFailure",                       // compilationFirstJITServerFailure + 5 = 53
+   "aotDeserializerReset",                                 // compilationFirstJITServerFailure + 6 = 54
 #endif /* defined(J9VM_OPT_JITSERVER) */
    "compilationMaxError"
 };
@@ -2119,16 +2120,36 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
    // Create AOT deserializer at the client if using JITServer with AOT cache
    if ((persistentInfo->getRemoteCompilationMode() == JITServer::CLIENT) && persistentInfo->getJITServerUseAOTCache())
       {
-      if (TR::Options::sharedClassCache())
+      if (persistentInfo->getJITServerAOTCacheIgnoreLocalSCC())
          {
-         auto deserializer = new (PERSISTENT_NEW) JITServerAOTDeserializer(persistentInfo->getPersistentClassLoaderTable());
+         auto deserializer = new (PERSISTENT_NEW) JITServerNoSCCAOTDeserializer(persistentInfo->getPersistentClassLoaderTable());
          if (!deserializer)
+            {
+            fprintf(stderr, "Could not create JITServer AOT deserializer\n");
             return -1;
+            }
+         compInfo->setJITServerAOTDeserializer(deserializer);
+         auto deserializerSharedCache = new (PERSISTENT_NEW) TR_J9DeserializerSharedCache(vm, deserializer);
+         if (!deserializerSharedCache)
+            {
+            fprintf(stderr, "Could not create JITServer AOT deserializer cache\n");
+            return -1;
+            }
+         compInfo->setDeserializerSharedCache(deserializerSharedCache);
+         }
+      else if (TR::Options::sharedClassCache())
+         {
+         auto deserializer = new (PERSISTENT_NEW) JITServerLocalSCCAOTDeserializer(persistentInfo->getPersistentClassLoaderTable());
+         if (!deserializer)
+            {
+            fprintf(stderr, "Could not create JITServer AOT deserializer\n");
+            return -1;
+            }
          compInfo->setJITServerAOTDeserializer(deserializer);
          }
       else
          {
-         fprintf(stderr, "Disabling JITServer AOT cache since AOT compilation is disabled\n");
+         fprintf(stderr, "Disabling JITServer AOT cache since AOT compilation and JITServerAOTCacheIgnoreLocalSCC are disabled\n");
          persistentInfo->setJITServerUseAOTCache(false);
          }
       }

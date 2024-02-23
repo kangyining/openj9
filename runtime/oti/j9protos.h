@@ -42,9 +42,6 @@
 #endif
 
 
-#define SEGMENT_TYPE(flags,type) ((flags & MEMORY_TYPE_MASK) == type)
-
-
 typedef struct J9Relocation {
     U_8* loadBase;
     U_8* loadTop;
@@ -155,23 +152,23 @@ I_32 numCodeSets (void);
 
 #if !defined(J9_SOFT_FLOAT) && (defined(_X86_) || defined (__i386__) || defined(J9HAMMER) || (defined(OSX) && !defined(J9AARCH64)))
 
-#define 	J9_SETUP_FPU_STATE() helperInitializeFPU()
+#define J9_SETUP_FPU_STATE() helperInitializeFPU()
 
 #else
 
-#define 	J9_SETUP_FPU_STATE()
+#define J9_SETUP_FPU_STATE()
 
 #endif
 
 
 
-#ifdef WIN64 
+#ifdef WIN64
 
 /*HACK */
 
 #undef  J9_SETUP_FPU_STATE
 
-#define 	J9_SETUP_FPU_STATE()
+#define J9_SETUP_FPU_STATE()
 
 #endif
 
@@ -1000,7 +997,7 @@ extern J9_CFUNC int
 initJVMRI PROTOTYPE(( J9JavaVM * vm ));
 
 struct DgRasInterface ;
-extern J9_CFUNC int 
+extern J9_CFUNC int
 fillInDgRasInterface PROTOTYPE((struct DgRasInterface *dri));
 
 extern J9_CFUNC int
@@ -1267,7 +1264,7 @@ extern J9_CFUNC j9object_t resolveOpenJDKInvokeHandle (J9VMThread *vmThread, J9C
 extern J9_CFUNC j9object_t resolveInvokeDynamic (J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, UDATA resolveFlags);
 extern J9_CFUNC j9object_t resolveConstantDynamic (J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, UDATA resolveFlags);
 #if JAVA_SPEC_VERSION >= 16
-extern J9_CFUNC void resolveUpcallInvokeHandle(J9VMThread *vmThread, J9UpcallMetaData *data);
+extern J9_CFUNC j9object_t resolveFfiCallInvokeHandle(J9VMThread *vmThread, j9object_t handle);
 #endif /* JAVA_SPEC_VERSION >= 16 */
 #endif /* _J9VMRESOLVESUPPORT_ */
 
@@ -1367,7 +1364,7 @@ extern J9_CFUNC void  JNICALL sendResolveInvokeDynamic (J9VMThread *vmThread, J9
 extern J9_CFUNC void  JNICALL jitFillOSRBuffer (struct J9VMThread *vmContext, void *osrBlock);
 extern J9_CFUNC void  JNICALL sendRunThread(J9VMThread *vmContext, j9object_t tenantContext);
 #if JAVA_SPEC_VERSION >= 16
-extern J9_CFUNC void JNICALL sendResolveUpcallInvokeHandle (J9VMThread *currentThread, J9UpcallMetaData *data);
+extern J9_CFUNC void JNICALL sendResolveFfiCallInvokeHandle (J9VMThread *currentThread, j9object_t handle);
 #endif /* JAVA_SPEC_VERSION >= 16 */
 #endif /* _J9VMJAVAINTERPRETERSTARTUP_ */
 

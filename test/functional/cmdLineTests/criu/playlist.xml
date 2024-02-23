@@ -104,6 +104,8 @@
 			<variation>-Xgcpolicy:optavgpause</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads64 -XX:CheckpointGCThreads=1</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads1</variation>
+			<variation>-XX:+DebugOnRestore -Xjit</variation>
+			<variation>-XX:+DebugOnRestore -Xjit:count=0</variation>
 		</variations>
 		<disables>
 			<disable>
@@ -140,6 +142,7 @@
 			<variation>-Xgcpolicy:optavgpause</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads64 -XX:CheckpointGCThreads=1</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads1</variation>
+			<variation>-XX:+DebugOnRestore</variation>
 		</variations>
 		<disables>
 			<disable>
@@ -150,7 +153,7 @@
 		<command>
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
 			-DSCRIPPATH=$(TEST_RESROOT)$(D)cracScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
-			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) -DTESTNG=$(TESTNG) \
 			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_nonPortable_jdk_crac.xml$(Q) \
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
@@ -174,6 +177,8 @@
 			<variation>-Xjit</variation>
 			<variation>-Xjit:count=0</variation>
 			<variation>-Xjit:vlog=vlog</variation>
+			<variation>-XX:+DebugOnRestore -Xjit</variation>
+			<variation>-XX:+DebugOnRestore -Xjit:count=0</variation>
 		</variations>
 		<disables>
 			<disable>

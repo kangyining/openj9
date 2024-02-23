@@ -225,15 +225,25 @@ class TR_RelocationRuntime {
       class IsRelocating
          {
          public:
-         IsRelocating(TR_RelocationRuntime *reloRuntime) : _reloRuntime(reloRuntime)
+         IsRelocating(TR_RelocationRuntime *reloRuntime, TR_J9SharedCache *cacheOverride) : _reloRuntime(reloRuntime)
             {
             TR_ASSERT_FATAL(!_reloRuntime->isRelocating(), "Cannot already be relocating a method");
             _reloRuntime->setIsRelocating();
+
+            TR_J9VMBase *fej9vm = _reloRuntime->fej9();
+            _restoreCache = fej9vm->sharedCache();
+            if (NULL != cacheOverride)
+               fej9vm->setSharedCache(cacheOverride);
             }
-         ~IsRelocating() { _reloRuntime->resetIsRelocating(); }
+         ~IsRelocating()
+            {
+            _reloRuntime->resetIsRelocating();
+            _reloRuntime->fej9()->setSharedCache(_restoreCache);
+            }
 
          private:
          TR_RelocationRuntime *_reloRuntime;
+         TR_J9SharedCache *_restoreCache;
          };
 
       TR_ALLOC(TR_Memory::Relocation)
@@ -293,13 +303,16 @@ class TR_RelocationRuntime {
                                                          TR::Options *options,
                                                          TR::Compilation *compilation,
                                                          TR_ResolvedMethod *resolvedMethod,
-                                                         uint8_t *existingCode = NULL);
+                                                         uint8_t *existingCode = NULL,
+                                                         TR_J9SharedCache *cacheOverride = NULL);
 
       virtual bool storeAOTHeader(TR_FrontEnd *fe, J9VMThread *curThread);
       virtual const TR_AOTHeader *getStoredAOTHeader(J9VMThread *curThread);
       virtual TR_AOTHeader *createAOTHeader(TR_FrontEnd *fe);
       virtual bool validateAOTHeader(TR_FrontEnd *fe, J9VMThread *curThread);
       virtual OMRProcessorDesc getProcessorDescriptionFromSCC(J9VMThread *curThread);
+
+      static void fillAOTHeader(J9JavaVM *vm, TR_FrontEnd *fe, TR_AOTHeader *header);
 
       static uintptr_t   getGlobalValue(uint32_t g)
          {
@@ -394,6 +407,8 @@ class TR_RelocationRuntime {
       static const char *_reloErrorCodeNames[];
 
    protected:
+      static uintptr_t generateFeatureFlags(TR_FrontEnd *fe);
+      static uint32_t getCurrentLockwordOptionHashValue(J9JavaVM *vm);
 
       J9JITConfig *_jitConfig;
       J9JavaVM *_javaVM;
@@ -470,7 +485,6 @@ public:
       virtual OMRProcessorDesc getProcessorDescriptionFromSCC(J9VMThread *curThread);
 
 private:
-      uint32_t getCurrentLockwordOptionHashValue(J9JavaVM *vm) const;
       virtual uint8_t * allocateSpaceInCodeCache(UDATA codeSize);
       virtual uint8_t * allocateSpaceInDataCache(UDATA metaDataSize, UDATA type);
       virtual void initializeAotRuntimeInfo();
@@ -482,8 +496,6 @@ private:
       bool generateError(U_32 module_name, U_32 reason, const char *assumeMessage);
 
       bool _sharedCacheIsFull;
-
-      static uintptr_t generateFeatureFlags(TR_FrontEnd *fe);
 
       static const char aotHeaderKey[];
       static const UDATA aotHeaderKeyLength;

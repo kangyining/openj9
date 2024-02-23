@@ -176,6 +176,8 @@ J9::OptionsPostRestore::iterateOverExternalOptions()
          case J9::ExternalOptions::XXcodecachetotalMaxRAMPercentage:
          case J9::ExternalOptions::XXplusJITServerAOTCacheDelayMethodRelocation:
          case J9::ExternalOptions::XXminusJITServerAOTCacheDelayMethodRelocation:
+         case J9::ExternalOptions::XXplusJITServerAOTCacheIgnoreLocalSCC:
+         case J9::ExternalOptions::XXminusJITServerAOTCacheIgnoreLocalSCC:
             {
             // do nothing, consume them to prevent errors
             FIND_AND_CONSUME_RESTORE_ARG(OPTIONAL_LIST_MATCH, optString, 0);
@@ -698,6 +700,16 @@ J9::OptionsPostRestore::postProcessInternalCompilerOptions()
       if (exceptionCatchEventHooked)
          _jitConfig->jitExceptionCaught = jitExceptionCaught;
       _compInfo->setVMExceptionEventsHooked(true);
+      invalidateAll = true;
+      disableAOT = true;
+      }
+
+   bool doAOT = !disableAOT;
+   TR::Options::FSDInitStatus fsdStatus = TR::Options::resetFSD(vm, _vmThread, doAOT);
+   disableAOT = !doAOT;
+
+   if (fsdStatus == TR::Options::FSDInitStatus::FSDInit_Error)
+      {
       invalidateAll = true;
       disableAOT = true;
       }

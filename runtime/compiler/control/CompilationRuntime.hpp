@@ -1310,10 +1310,23 @@ public:
    JITServerAOTDeserializer *getJITServerAOTDeserializer() const { return _JITServerAOTDeserializer; }
    void setJITServerAOTDeserializer(JITServerAOTDeserializer *deserializer) { _JITServerAOTDeserializer = deserializer; }
 
+   TR_J9DeserializerSharedCache *getDeserializerSharedCache() const { return _deserializerSharedCache; }
+   void setDeserializerSharedCache(TR_J9DeserializerSharedCache *deserializerSharedCache) { _deserializerSharedCache = deserializerSharedCache; }
+
    bool methodCanBeJITServerAOTCacheStored(const char *methodSig, TR::Method::Type ty);
    bool methodCanBeJITServerAOTCacheLoaded(const char *methodSig, TR::Method::Type ty);
 
    bool methodCanBeRemotelyCompiled(const char *methodSig, TR::Method::Type ty);
+
+   /**
+   * @brief Notify every compilation thread that a JITServer AOT deserializer reset has occurred
+   *
+   * This function sets the _deserializerWasReset flag in every compilation thread. This function
+   * must be called with the appropriate deserializer monitors in hand. See
+   * JITServerAOTDeserializer::reset() for details.
+   *
+   */
+   void notifyCompilationThreadsOfDeserializerReset();
 #endif /* defined(J9VM_OPT_JITSERVER) */
    uint32_t getNumTotalCompilations() const { return _numSyncCompilations + _numAsyncCompilations; }
    uint32_t getNumCompsUsedForCompDensityCalculations() const { return _numCompsUsedForCompDensityCalculations; }
@@ -1557,6 +1570,7 @@ private:
    JITServerSharedROMClassCache *_sharedROMClassCache;
    JITServerAOTCacheMap *_JITServerAOTCacheMap;
    JITServerAOTDeserializer *_JITServerAOTDeserializer;
+   TR_J9DeserializerSharedCache *_deserializerSharedCache;
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
 #if defined(J9VM_OPT_CRIU_SUPPORT)
