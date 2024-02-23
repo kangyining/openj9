@@ -320,6 +320,9 @@ public:
       UDATA _vmindexOffset;
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
       bool _useAOTCache;
+      // Should we use server offsets (idAndType of AOT cache serialization records) instead of
+      // local SCC offsets during AOT cache compilations?
+      bool _useServerOffsets;
       TR_AOTHeader _aotHeader;
       TR_OpaqueClassBlock *_JavaLangObject;
       TR_OpaqueClassBlock *_JavaStringObject;
@@ -346,7 +349,7 @@ public:
 
    struct ClassChainData
       {
-      uintptr_t *_classChain;
+      uintptr_t _classChainOffset;
       const AOTCacheClassChainRecord *_aotCacheClassChainRecord;
       };
 
@@ -477,13 +480,16 @@ public:
    const AOTCacheMethodRecord *getMethodRecord(J9Method *method, J9Class *definingClass, JITServer::ServerStream *stream);
    // If this function sets the missingLoaderInfo flag then a NULL result is due to missing class loader info; otherwise that
    // result is due to a failure to allocate.
-   const AOTCacheClassChainRecord *getClassChainRecord(J9Class *clazz, uintptr_t *classChain,
+   const AOTCacheClassChainRecord *getClassChainRecord(J9Class *clazz, uintptr_t classChainOffset,
                                                        const std::vector<J9Class *> &ramClassChain, JITServer::ServerStream *stream,
                                                        bool &missingLoaderInfo);
+   const AOTCacheWellKnownClassesRecord *getWellKnownClassesRecord(const AOTCacheClassChainRecord *const *chainRecords,
+                                                       size_t length, uintptr_t includedClasses);
 
    JITServerAOTCache::KnownIdSet &getAOTCacheKnownIds() { return _aotCacheKnownIds; }
    TR::Monitor *getAOTCacheKnownIdsMonitor() const { return _aotCacheKnownIdsMonitor; }
 
+   bool useServerOffsets(JITServer::ServerStream *stream);
 private:
    void destroyMonitors();
 
@@ -570,6 +576,7 @@ private:
 
    std::string _aotCacheName;
    JITServerAOTCache *volatile _aotCache;
+   bool _useServerOffsets;
    const AOTCacheAOTHeaderRecord *volatile _aotHeaderRecord;
 
    JITServerAOTCache::KnownIdSet _aotCacheKnownIds;

@@ -220,6 +220,11 @@ TR_J9VMBase::createResolvedMethodWithSignature(TR_Memory * trMemory, TR_OpaqueMe
       {
 #if defined(J9VM_INTERP_AOT_COMPILE_SUPPORT)
 #if defined(J9VM_OPT_SHARED_CLASSES) && (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
+#if defined(J9VM_OPT_JITSERVER)
+      if (_compInfoPT->getMethodBeingCompiled()->_useAOTCacheCompilation)
+         result = new (trMemory->trHeapMemory()) TR_ResolvedRelocatableJ9Method(aMethod, this, trMemory, owningMethod, vTableSlot);
+      else
+#endif /* defined(J9VM_OPT_JITSERVER) */
       if (TR::Options::sharedClassCache())
          {
          result = new (trMemory->trHeapMemory()) TR_ResolvedRelocatableJ9Method(aMethod, this, trMemory, owningMethod, vTableSlot);
@@ -794,10 +799,11 @@ static intptr_t getInitialCountForMethod(TR_ResolvedMethod *rm, TR::Compilation 
 #if defined(J9VM_INTERP_AOT_COMPILE_SUPPORT) && defined(J9VM_OPT_SHARED_CLASSES) && (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
    if (TR::Options::sharedClassCache())
       {
+      J9Class *ramClass = m->constantPoolHdr();
       J9ROMClass *romClass = m->romClassPtr();
       J9ROMMethod *romMethod = m->romMethod();
 
-      if (!comp->fej9()->sharedCache()->isROMClassInSharedCache(romClass))
+      if (!comp->fej9()->sharedCache()->isClassInSharedCache(ramClass))
          {
 #if defined(J9ZOS390)
           // Do not change the counts on zos at the moment since the shared cache capacity is higher on this platform
@@ -991,9 +997,14 @@ TR_ResolvedRelocatableJ9Method::TR_ResolvedRelocatableJ9Method(TR_OpaqueMethodBl
    {
    TR_J9VMBase *fej9 = (TR_J9VMBase *)fe;
    TR::Compilation *comp = TR::comp();
+#if defined(J9VM_OPT_JITSERVER)
+   if (fej9->_compInfoPT->getMethodBeingCompiled()->_useAOTCacheCompilation)
+      return;
+   else
+#endif /* defined(J9VM_OPT_JITSERVER) */
    if (comp && this->TR_ResolvedMethod::getRecognizedMethod() != TR::unknownMethod)
       {
-      if (fej9->sharedCache()->rememberClass(containingClass()))
+      if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET != fej9->sharedCache()->rememberClass(containingClass()))
          {
          if (comp->getOption(TR_UseSymbolValidationManager))
             {
@@ -1345,6 +1356,13 @@ TR_ResolvedRelocatableJ9Method::storeValidationRecordIfNecessary(TR::Compilation
    TR_AOTStats *aotStats = ((TR_JitPrivateConfig *)fej9->_jitConfig->privateConfig)->aotStats;
    bool isStatic = false;
 
+#if defined(J9VM_OPT_JITSERVER)
+   // If this compilation is tied to a remote compilation that is ignoring the client's SCC, none of the below is necessary, as
+   // all of it will be done at the server.
+   if (comp->ignoringLocalSCC())
+      return true;
+#endif /* defined(J9VM_OPT_JITSERVER) */
+
    TR::CompilationInfo *compInfo = TR::CompilationInfo::get(fej9->_jitConfig);
 
    isStatic = (reloKind == TR_ValidateStaticField);
@@ -1372,11 +1390,9 @@ TR_ResolvedRelocatableJ9Method::storeValidationRecordIfNecessary(TR::Compilation
    J9UTF8 *className = J9ROMCLASS_CLASSNAME(definingClass->romClass);
    traceMsg(comp, "\tdefiningClass name %.*s\n", J9UTF8_LENGTH(className), J9UTF8_DATA(className));
 
-   void *classChain = NULL;
-
    // all kinds of validations may need to rely on the entire class chain, so make sure we can build one first
-   classChain = fej9->sharedCache()->rememberClass(definingClass);
-   if (!classChain)
+   uintptr_t classChainOffset = fej9->sharedCache()->rememberClass(definingClass);
+   if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == classChainOffset)
       return false;
 
    bool inLocalList = false;
@@ -1396,7 +1412,7 @@ TR_ResolvedRelocatableJ9Method::storeValidationRecordIfNecessary(TR::Compilation
             if (isStatic)
                inLocalList = (definingClass->romClass == ((J9Class *)((*info)->_clazz))->romClass);
             else
-               inLocalList = (classChain == (*info)->_classChain &&
+               inLocalList = (classChainOffset == (*info)->_classChainOffset &&
                               cpIndex == (*info)->_cpIndex &&
                               ramMethod == (J9Method *)(*info)->_method);
 
@@ -1419,7 +1435,7 @@ TR_ResolvedRelocatableJ9Method::storeValidationRecordIfNecessary(TR::Compilation
       return true;
       }
 
-   TR::AOTClassInfo *classInfo = new (comp->trHeapMemory()) TR::AOTClassInfo(fej9, (TR_OpaqueClassBlock *)definingClass, (void *) classChain, (TR_OpaqueMethodBlock *)ramMethod, cpIndex, reloKind);
+   TR::AOTClassInfo *classInfo = new (comp->trHeapMemory()) TR::AOTClassInfo(fej9, (TR_OpaqueClassBlock *)definingClass, classChainOffset, (TR_OpaqueMethodBlock *)ramMethod, cpIndex, reloKind);
    if (classInfo)
       {
       traceMsg(comp, "\tCreated new AOT class info %p\n", classInfo);
@@ -1847,7 +1863,11 @@ TR_ResolvedRelocatableJ9Method::createResolvedMethodFromJ9Method(TR::Compilation
          isSystemClassLoader = ((void*)_fe->vmThread()->javaVM->systemClassLoader->classLoaderObject ==  (void*)_fe->getClassLoader(clazzOfInlinedMethod));
          }
 
-      bool methodInSCC = _fe->sharedCache()->isROMClassInSharedCache(J9_CLASS_FROM_METHOD(j9method)->romClass);
+      bool ignoringLocalSCC = false;
+#if defined(J9VM_OPT_JITSERVER)
+      ignoringLocalSCC = comp->ignoringLocalSCC();
+#endif /* defined(J9VM_OPT_JITSERVER) */
+      bool methodInSCC = ignoringLocalSCC || _fe->sharedCache()->isClassInSharedCache(J9_CLASS_FROM_METHOD(j9method));
       if (methodInSCC)
          {
          bool sameLoaders = false;
@@ -1857,7 +1877,7 @@ TR_ResolvedRelocatableJ9Method::createResolvedMethodFromJ9Method(TR::Compilation
              isSystemClassLoader)
             {
             resolvedMethod = new (comp->trHeapMemory()) TR_ResolvedRelocatableJ9Method((TR_OpaqueMethodBlock *) j9method, _fe, comp->trMemory(), this, vTableSlot);
-            if (comp->getOption(TR_UseSymbolValidationManager))
+            if (!ignoringLocalSCC && comp->getOption(TR_UseSymbolValidationManager))
                {
                TR::SymbolValidationManager *svm = comp->getSymbolValidationManager();
                if (!svm->isAlreadyValidated(resolvedMethod->containingClass()))
@@ -2788,6 +2808,7 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::java_lang_StringCoding_decode, "decode", "(Ljava/nio/charset/Charset;[BII)[C")},
       {x(TR::java_lang_StringCoding_encode, "encode", "(Ljava/nio/charset/Charset;[CII)[B")},
       {x(TR::java_lang_StringCoding_implEncodeISOArray, "implEncodeISOArray", "([BI[BII)I")},
+      {x(TR::java_lang_StringCoding_implEncodeAsciiArray, "implEncodeAsciiArray", "([CI[BII)I")},
       {x(TR::java_lang_StringCoding_encode8859_1,       "encode8859_1",       "(B[B)[B")},
       {x(TR::java_lang_StringCoding_encodeASCII,        "encodeASCII",        "(B[B)[B")},
       {x(TR::java_lang_StringCoding_encodeUTF8,         "encodeUTF8",         "(B[BZ)[B")},
@@ -2955,10 +2976,6 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::sun_misc_Unsafe_compareAndExchangeLong_jlObjectJJJ_Z,                 "compareAndExchangeLong",   "(Ljava/lang/Object;JJJ)J")},
       {x(TR::sun_misc_Unsafe_compareAndExchangeObject_jlObjectJjlObjectjlObject_Z, "compareAndExchangeObject", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::sun_misc_Unsafe_compareAndExchangeObject_jlObjectJjlObjectjlObject_Z, "compareAndExchangeReference", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")},
-
-      {x(TR::sun_misc_Unsafe_compareAndExchangeInt_jlObjectJII_Z,                  "compareAndExchangeIntVolatile",    "(Ljava/lang/Object;JII)I")},
-      {x(TR::sun_misc_Unsafe_compareAndExchangeLong_jlObjectJJJ_Z,                 "compareAndExchangeLongVolatile",   "(Ljava/lang/Object;JJJ)J")},
-      {x(TR::sun_misc_Unsafe_compareAndExchangeObject_jlObjectJjlObjectjlObject_Z, "compareAndExchangeObjectVolatile", "(Ljava/lang/Object;JLjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;")},
 
       {x(TR::sun_misc_Unsafe_staticFieldBase,               "staticFieldBase",   "(Ljava/lang/reflect/Field;)Ljava/lang/Object")},
       {x(TR::sun_misc_Unsafe_staticFieldOffset,             "staticFieldOffset", "(Ljava/lang/reflect/Field;)J")},
@@ -3195,6 +3212,7 @@ void TR_ResolvedJ9Method::construct()
    static X StringLatin1Methods[] =
       {
       { x(TR::java_lang_StringLatin1_indexOf,                                 "indexOf",       "([BI[BII)I")},
+      { x(TR::java_lang_StringLatin1_indexOfChar,                             "indexOfChar",   "([BIII)I")},
       { x(TR::java_lang_StringLatin1_inflate,                                 "inflate",       "([BI[CII)V")},
       { TR::unknownMethod }
       };
@@ -3208,6 +3226,7 @@ void TR_ResolvedJ9Method::construct()
       { x(TR::java_lang_StringUTF16_compareValues,                            "compareValues",      "([B[BII)I")},
       { x(TR::java_lang_StringUTF16_getChar,                                  "getChar",            "([BI)C")},
       { x(TR::java_lang_StringUTF16_indexOf,                                  "indexOf",            "([BI[BII)I")},
+      { x(TR::java_lang_StringUTF16_indexOfCharUnsafe,                        "indexOfCharUnsafe",  "([BIII)I")},
       { x(TR::java_lang_StringUTF16_length,                                   "length",             "([B)I")},
       { x(TR::java_lang_StringUTF16_newBytesFor,                              "newBytesFor",        "(I)[B")},
       { x(TR::java_lang_StringUTF16_putChar,                                  "putChar",            "([BII)V")},

@@ -226,12 +226,13 @@ public final class InternalCRIUSupport {
 			boolean trackMemory,
 			boolean unprivileged,
 			String optionsFile,
-			String envFile);
+			String envFile,
+			long ghostFileLimit);
 	private static native boolean setupJNIFieldIDsAndCRIUAPI();
 
 	private static native String[] getRestoreSystemProperites();
 
-	static {
+	private static void initializeUnsafe() {
 		AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 			try {
 				Field f = Unsafe.class.getDeclaredField("theUnsafe"); //$NON-NLS-1$
@@ -403,6 +404,25 @@ public final class InternalCRIUSupport {
 	private boolean unprivileged;
 	private Path envFile;
 	private String optionsFile;
+	private long ghostFileLimit = -1;
+
+	/**
+	 * Set the size limit for ghost files when taking a checkpoint. File limit
+	 * can not be greater than 2^32 - 1 or negative.
+	 *
+	 * Default: 1MB set by CRIU
+	 *
+	 * @param limit the file limit size in bytes.
+	 * @return this
+	 * @throws UnsupportedOperationException if file limit is greater than 2^32 - 1 or negative.
+	 */
+	public InternalCRIUSupport setGhostFileLimit(long limit) {
+		if ((limit > 0xFFFFFFFFL) || (limit < 0)) {
+			throw new UnsupportedOperationException("Ghost file must be non-negative and less than 4GB");
+		}
+		this.ghostFileLimit = limit;
+		return this;
+	}
 
 	/**
 	 * Sets the directory that will hold the images upon checkpoint. This must be
@@ -809,6 +829,10 @@ public final class InternalCRIUSupport {
 			return;
 		}
 
+		if (unsafe == null) {
+			initializeUnsafe();
+		}
+
 		J9InternalCheckpointHookAPI.registerPostRestoreHook(HookMode.SINGLE_THREAD_MODE, RESTORE_ENVIRONMENT_VARIABLES_PRIORITY,
 				"Restore environment variables via env file: " + envFile, () -> { //$NON-NLS-1$
 					if (!Files.exists(this.envFile)) {
@@ -955,7 +979,7 @@ public final class InternalCRIUSupport {
 				J9InternalCheckpointHookAPI.runPreCheckpointHooksConcurrentThread();
 				System.gc();
 				checkpointJVMImpl(imageDir, leaveRunning, shellJob, extUnixSupport, logLevel, logFile, fileLocks,
-						workDir, tcpEstablished, autoDedup, trackMemory, unprivileged, optionsFile, envFilePath);
+						workDir, tcpEstablished, autoDedup, trackMemory, unprivileged, optionsFile, envFilePath, ghostFileLimit);
 				J9InternalCheckpointHookAPI.runPostRestoreHooksConcurrentThread();
 			} else {
 				throw new UnsupportedOperationException(

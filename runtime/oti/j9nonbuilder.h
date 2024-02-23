@@ -3468,6 +3468,7 @@ typedef struct J9ClassLoader {
 	omrthread_monitor_t hotFieldPoolMutex;
 	omrthread_rwmutex_t cpEntriesMutex;
 	UDATA initClassPathEntryCount;
+	UDATA asyncGetCallTraceUsed;
 } J9ClassLoader;
 
 #define J9CLASSLOADER_SHARED_CLASSES_ENABLED  8
@@ -3581,6 +3582,9 @@ typedef struct J9ROMClass {
 #endif /* JAVA_SPEC_VERSION >= 11 */
 #define J9ROMCLASS_OPTIONALINFO(base) SRP_GET((base)->optionalInfo, U_32*)
 #define J9ROMCLASS_CALLSITEDATA(base) SRP_GET((base)->callSiteData, U_8*)
+#if defined(J9VM_OPT_METHOD_HANDLE)
+#define J9ROMCLASS_VARHANDLEMETHODTYPELOOKUPTABLE(base) SRP_GET((base)->varHandleMethodTypeLookupTable, U_16*)
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) */
 #define J9ROMCLASS_STATICSPLITMETHODREFINDEXES(base) SRP_GET((base)->staticSplitMethodRefIndexes, U_16*)
 #define J9ROMCLASS_SPECIALSPLITMETHODREFINDEXES(base) SRP_GET((base)->specialSplitMethodRefIndexes, U_16*)
 
@@ -4255,6 +4259,7 @@ typedef struct J9CRIUCheckpointState {
 	void (*criuSetWorkDirFdFunctionPointerType)(int workDirFD);
 	int (*criuInitOptsFunctionPointerType)(void);
 	int (*criuDumpFunctionPointerType)(void);
+	void (*criuSetGhostFileLimitFunctionPointerType)(U_32 ghostFileLimit);
 	UDATA libCRIUHandle;
 	struct J9VMInitArgs *restoreArgsList;
 	char *restoreArgsChars;
@@ -5054,7 +5059,7 @@ typedef struct J9InternalVMFunctions {
 	jobject (*getRestoreSystemProperites)(struct J9VMThread *currentThread);
 	BOOLEAN (*setupJNIFieldIDsAndCRIUAPI)(JNIEnv *env, jclass *currentExceptionClass, IDATA *systemReturnCode, const char **nlsMsgFormat);
 	void JNICALL (*criuCheckpointJVMImpl)(JNIEnv *env, jstring imagesDir, jboolean leaveRunning, jboolean shellJob, jboolean extUnixSupport, jint logLevel, jstring logFile,
-			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile);
+			jboolean fileLocks, jstring workDir, jboolean tcpEstablished, jboolean autoDedup, jboolean trackMemory, jboolean unprivileged, jstring optionsFile, jstring environmentFile, jlong ghostFileLimit);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	j9object_t (*getClassNameString)(struct J9VMThread *currentThread, j9object_t classObject, jboolean internAndAssign);
 	j9object_t* (*getDefaultValueSlotAddress)(struct J9Class *clazz);
@@ -5230,6 +5235,7 @@ typedef struct J9VMThread {
 	 *		* java/lang/invoke/MethodHandle.linkToSpecial
 	 *		* java/lang/invoke/MethodHandle.linkToVirtual
 	 *		* java/lang/invoke/MethodHandle.linkToInterface
+	 *		* java/lang/invoke/MethodHandle.linkToNative
 	 *		the compiled code performs a store to this field right before the INL call. The
 	 *		stored value represents the number of stack slots occupied by the args, and the
 	 *		interpreter uses the value to locate the beginning of the arguments on the stack.
@@ -5432,7 +5438,7 @@ typedef struct J9VMThread {
 	J9VMContinuation **continuationT1Cache;
 #endif /* JAVA_SPEC_VERSION >= 19 */
 #if JAVA_SPEC_VERSION >= 21
-	BOOLEAN isInTrivialDownCall;
+	BOOLEAN isInCriticalDownCall;
 #endif /* JAVA_SPEC_VERSION >= 21 */
 } J9VMThread;
 
@@ -5926,6 +5932,9 @@ typedef struct J9JavaVM {
 	jmethodID addOpens;
 	jmethodID addUses;
 	jmethodID addProvides;
+#if JAVA_SPEC_VERSION >= 19
+	jmethodID vThreadInterrupt;
+#endif /* JAVA_SPEC_VERSION >= 19 */
 	UDATA addModulesCount;
 	UDATA safePointState;
 	UDATA safePointResponseCount;
@@ -6006,7 +6015,6 @@ typedef struct J9JavaVM {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	omrthread_monitor_t delayedLockingOperationsMutex;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
-	UDATA asyncGetCallTraceUsed;
 	U_32 compatibilityFlags;
 } J9JavaVM;
 
@@ -6055,6 +6063,9 @@ typedef struct J9JavaVM {
 #define J9JAVAVM_DISCONTIGUOUS_INDEXABLE_HEADER_SIZE(vm) ((vm)->discontiguousIndexableHeaderSize)
 
 #if JAVA_SPEC_VERSION >= 16
+#if JAVA_SPEC_VERSION >= 22
+#define J9_FFI_DOWNCALL_HEAP_ARGUMENT_ID 0x1
+#endif /* JAVA_SPEC_VERSION >= 22 */
 
 /* The mask for the signature type identifier */
 #define J9_FFI_UPCALL_SIG_TYPE_MASK 0xF

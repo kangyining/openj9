@@ -7321,6 +7321,19 @@ TR_J9VM::getClassFromSignature(const char * sig, int32_t sigLength, J9ConstantPo
    return returnValue; // 0 means failure
    }
 
+uint32_t
+TR_J9VMBase::numInterfacesImplemented(J9Class *clazz)
+   {
+   uint32_t count=0;
+   J9ITable *element = TR::Compiler->cls.iTableOf(convertClassPtrToClassOffset(clazz));
+   while (element != NULL)
+      {
+      count++;
+      element = TR::Compiler->cls.iTableNext(element);
+      }
+   return count;
+   }
+
 TR_EstimateCodeSize *
 TR_J9VMBase::getCodeEstimator(TR::Compilation *comp)
    {
@@ -9320,6 +9333,10 @@ void *
 TR_J9SharedCacheVM::getJ2IThunk(char *signatureChars, uint32_t signatureLength, TR::Compilation *comp)
    {
    void *thunk = NULL;
+#if defined(J9VM_OPT_JITSERVER)
+   if (comp->ignoringLocalSCC())
+      return TR_J9VMBase::getJ2IThunk(signatureChars, signatureLength, comp);
+#endif /* defined(J9VM_OPT_JITSERVER) */
 
 #if defined(J9VM_INTERP_AOT_COMPILE_SUPPORT) && defined(J9VM_OPT_SHARED_CLASSES) && (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
    uintptr_t length;
@@ -9334,6 +9351,11 @@ TR_J9SharedCacheVM::setJ2IThunk(char *signatureChars, uint32_t signatureLength, 
    {
    uint8_t *thunkStart = (uint8_t *)thunkptr - 8;
    uint32_t totalSize = *((uint32_t *)((uint8_t *)thunkptr - 8)) + 8;
+
+#if defined(J9VM_OPT_JITSERVER)
+   if (comp->ignoringLocalSCC())
+      return TR_J9VMBase::setJ2IThunk(signatureChars, signatureLength, thunkptr, comp);
+#endif /* defined(J9VM_OPT_JITSERVER) */
 
 #if defined(J9VM_INTERP_AOT_COMPILE_SUPPORT) && defined(J9VM_OPT_SHARED_CLASSES) && (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
    if (TR::Options::getAOTCmdLineOptions()->getOption(TR_TraceRelocatableDataDetailsCG))
@@ -9403,7 +9425,7 @@ bool
 TR_J9SharedCacheVM::canRememberClass(TR_OpaqueClassBlock *classPtr)
    {
    if (_sharedCache)
-      return (_sharedCache->rememberClass((J9Class *)classPtr, NULL, false) != NULL);
+      return (_sharedCache->rememberClass((J9Class *)classPtr, NULL, false) != TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET);
    return false;
    }
 

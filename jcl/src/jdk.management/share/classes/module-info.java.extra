@@ -1,4 +1,4 @@
-/*[INCLUDE-IF Sidecar19-SE]*/
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 9]*/
 /*******************************************************************************
  * Copyright IBM Corp. and others 2016
  *
@@ -25,3 +25,6 @@ exports com.ibm.lang.management;
 exports openj9.lang.management;
 exports com.ibm.virtualization.management;
 provides sun.management.spi.PlatformMBeanProvider with com.ibm.lang.management.internal.PlatformMBeanProvider;
+/*[IF CRAC_SUPPORT]*/
+exports jdk.crac.management;
+/*[ENDIF] CRAC_SUPPORT*/
