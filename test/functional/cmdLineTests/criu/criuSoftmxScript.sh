@@ -62,7 +62,7 @@ if [ "$((${MEMORY2}))" -ne 9223372036854771712 ]; then
 else
     MEMORY=$((1024*MEMORY))
 fi
-
+echo $MEMORY
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
     XDynamicHeapAdjustment="-XX:+dynamicHeapAdjustmentForRestore"
