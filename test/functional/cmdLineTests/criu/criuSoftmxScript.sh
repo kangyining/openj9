@@ -100,7 +100,7 @@ if [ "$7" != true ]; then
 fi
 echo "test output"
 cat testOutput;
-echo "restore ouptut"
+echo "restore output"
 cat criuOutput
 echo "restore verbose"
 cat output.txt
