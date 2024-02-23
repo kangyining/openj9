@@ -1768,6 +1768,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		Trc_VM_criu_before_checkpoint(currentThread, j9time_nano_time(), j9time_current_time_nanos(&success));
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_CHECKPOINT_PHASE_END);
 		criuDumpReturnCode = vm->checkpointState.criuDumpFunctionPointerType();
+		j9tty_printf(PORTLIB, "THE CRIU DUMP RETURN CODE IS: %d\n\n", criuDumpReturnCode);
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_RESTORE_PHASE_START);
 		restoreNanoTimeMonotonic = j9time_nano_time();
 		restoreNanoUTCTime = j9time_current_time_nanos(&success);
@@ -1804,9 +1805,11 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		j9mem_free_memory(syslogOptions);
 
 		if (criuDumpReturnCode >= 0) {
+			
 			/* Set this if the dump succeeded. If it doesnt succeed we still need to run some of the restore
 			 * code as some threads are waiting to be notified.
 			 */
+			j9tty_printf(PORTLIB, "THIS BLOCK IS ENTERED!!!\n\n\n");
 			isAfterCheckpoint = TRUE;
 		}
 
