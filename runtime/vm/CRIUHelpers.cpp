@@ -1475,7 +1475,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 	BOOLEAN setupCRIU = TRUE;
 	PORT_ACCESS_FROM_VMC(currentThread);
 
-	j9tty_printf(PORTLIB, "CP1\n\n\n");
+	printf("CP1\n\n\n");
 	Trc_VM_criu_checkpointJVMImpl_Entry(currentThread);
 	if (NULL == vm->checkpointState.criuJVMCheckpointExceptionClass) {
 		setupCRIU = setupJNIFieldIDsAndCRIUAPI(env, &currentExceptionClass, &systemReturnCode, &nlsMsgFormat);
@@ -1519,9 +1519,9 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		UDATA criuRestorePid = 0;
 		U_32 intGhostFileLimit = 0;
 		IDATA criuDumpReturnCode = 0;
-		j9tty_printf(PORTLIB, "CP2\n\n\n");
+		printf( "CP2\n\n\n");
 		vmFuncs->internalEnterVMFromJNI(currentThread);
-		j9tty_printf(PORTLIB, "CP3\n\n\n");
+		printf( "CP3\n\n\n");
 		Assert_VM_criu_notNull(imagesDir);
 		cpDir = J9_JNI_UNWRAP_REFERENCE(imagesDir);
 		systemReturnCode = getNativeString(currentThread, cpDir, &directoryChars, STRING_BUFFER_SIZE);
@@ -1536,7 +1536,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING, NULL);
 			goto freeDir;
 		}
-		j9tty_printf(PORTLIB, "CP4\n\n\n");
+		printf( "CP4\n\n\n");
 		if (NULL != logFile) {
 			log = J9_JNI_UNWRAP_REFERENCE(logFile);
 			systemReturnCode = getNativeString(currentThread, log, &logFileChars, STRING_BUFFER_SIZE);
@@ -1552,7 +1552,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto freeLog;
 			}
 		}
-		j9tty_printf(PORTLIB, "CP5\n\n\n");
+		printf( "CP5\n\n\n");
 		if (NULL != optionsFile) {
 			optFile = J9_JNI_UNWRAP_REFERENCE(optionsFile);
 			systemReturnCode = getNativeString(currentThread, optFile, &optionsFileChars, STRING_BUFFER_SIZE);
@@ -1570,7 +1570,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			optionsFileChars = NULL;
 		}
-		j9tty_printf(PORTLIB, "CP6\n\n\n");
+		printf( "CP6\n\n\n");
 		if (NULL != environmentFile) {
 			envFile = J9_JNI_UNWRAP_REFERENCE(environmentFile);
 			systemReturnCode = getNativeString(currentThread, envFile, &envFileChars, STRING_BUFFER_SIZE);
@@ -1588,7 +1588,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			envFileChars = NULL;
 		}
-		j9tty_printf(PORTLIB, "CP7\n\n\n");
+		printf( "CP7\n\n\n");
 		if (NULL != workDir) {
 			wrkDir = J9_JNI_UNWRAP_REFERENCE(workDir);
 			systemReturnCode = getNativeString(currentThread, wrkDir, &workDirChars, STRING_BUFFER_SIZE);
@@ -1604,7 +1604,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto freeWorkDir;
 			}
 		}
-		j9tty_printf(PORTLIB, "CP8\n\n\n");
+		printf( "CP8\n\n\n");
 		dirFD = open(directoryChars, O_DIRECTORY);
 		if (dirFD < 0) {
 			systemReturnCode = errno;
@@ -1612,7 +1612,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR, NULL);
 			goto freeWorkDir;
 		}
-		j9tty_printf(PORTLIB, "CP9\n\n\n");
+		printf( "CP9\n\n\n");
 		if (NULL != workDir) {
 			workDirFD = open(workDirChars, O_DIRECTORY);
 			if (workDirFD < 0) {
@@ -1622,14 +1622,14 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto closeDirFD;
 			}
 		}
-		j9tty_printf(PORTLIB, "CP10\n\n\n");
+		printf( "CP10\n\n\n");
 		systemReturnCode = vm->checkpointState.criuInitOptsFunctionPointerType();
 		if (0 != systemReturnCode) {
 			currentExceptionClass = vm->checkpointState.criuSystemCheckpointExceptionClass;
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_INIT_FAILED, NULL);
 			goto closeWorkDirFD;
 		}
-		j9tty_printf(PORTLIB, "CP11\n\n\n");
+		printf( "CP11\n\n\n");
 		if (JNI_TRUE == unprivileged) {
 			if (NULL != vm->checkpointState.criuSetUnprivilegedFunctionPointerType) {
 				systemReturnCode = J9_CRIU_UNPRIVILEGED_NO_ERROR;
@@ -1641,7 +1641,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto closeWorkDirFD;
 			}
 		}
-		j9tty_printf(PORTLIB, "CP12\n\n\n");
+		printf( "CP12\n\n\n");
 		vm->checkpointState.criuSetImagesDirFdFunctionPointerType(dirFD);
 		vm->checkpointState.criuSetShellJobFunctionPointerType(JNI_FALSE != shellJob);
 		if (logLevel > 0) {
@@ -1656,7 +1656,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		vm->checkpointState.criuSetTcpEstablishedFunctionPointerType(JNI_FALSE != tcpEstablished);
 		vm->checkpointState.criuSetAutoDedupFunctionPointerType(JNI_FALSE != autoDedup);
 		vm->checkpointState.criuSetTrackMemFunctionPointerType(JNI_FALSE != trackMemory);
-		j9tty_printf(PORTLIB, "CP13\n\n\n");
+		printf( "CP13\n\n\n");
 		if (-1 != ghostFileLimit) {
 			intGhostFileLimit = (U_32)(U_64)ghostFileLimit;
 			if (0 != intGhostFileLimit) {
@@ -1667,7 +1667,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		if (NULL != workDir) {
 			vm->checkpointState.criuSetWorkDirFdFunctionPointerType(workDirFD);
 		}
-		j9tty_printf(PORTLIB, "CP14\n\n\n");
+		printf( "CP14\n\n\n");
 		acquireSafeOrExcusiveVMAccess(currentThread, vmFuncs, safePoint);
 
 		notSafeToCheckpoint = checkIfSafeToCheckpoint(currentThread);
@@ -1680,7 +1680,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			acquireSafeOrExcusiveVMAccess(currentThread, vmFuncs, safePoint);
 			notSafeToCheckpoint = checkIfSafeToCheckpoint(currentThread);
 		}
-		j9tty_printf(PORTLIB, "CP15\n\n\n");
+		printf( "CP15\n\n\n");
 		if ((J9VM_DELAYCHECKPOINT_NOTCHECKPOINTSAFE == notSafeToCheckpoint)
 			|| ((J9VM_DELAYCHECKPOINT_CLINIT == notSafeToCheckpoint) && J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_THROW_ON_DELAYED_CHECKPOINT_ENABLED))
 		) {
@@ -1694,7 +1694,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			Trc_VM_criu_checkpointJVMImpl_checkpointWithActiveCLinit(currentThread);
 		}
-		j9tty_printf(PORTLIB, "CP16\n\n\n");
+		printf( "CP16\n\n\n");
 		toggleSuspendOnJavaThreads(currentThread, TRUE, FALSE);
 
 		vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_CRIU_SINGLE_THREAD_MODE|J9_EXTENDED_RUNTIME2_CRIU_SINGLE_THROW_BLOCKING_EXCEPTIONS;
@@ -1706,7 +1706,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			/* throw the pending exception */
 			goto wakeJavaThreads;
 		}
-		j9tty_printf(PORTLIB, "CP17\n\n\n");
+		printf( "CP17\n\n\n");
 		/* At this point, Java threads are all finished, and JVM is considered paused before taking the checkpoint. */
 		vm->checkpointState.checkpointRestoreTimeDelta = 0;
 		portLibrary->nanoTimeMonotonicClockDelta = 0;
@@ -1720,7 +1720,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		}
 		Trc_VM_criu_checkpoint_nano_times(currentThread, checkpointNanoTimeMonotonic, checkpointNanoUTCTime);
 		TRIGGER_J9HOOK_VM_PREPARING_FOR_CHECKPOINT(vm->hookInterface, currentThread);
-		j9tty_printf(PORTLIB, "CP18\n\n\n");
+		printf( "CP18\n\n\n");
 		/* GC releases threads in a multi-thread fashion. Threads will need to remove
 		 * themselves from the threadgroup which requires a lock. Disable deadlock detection
 		 * temporarily while this happens.
@@ -1742,7 +1742,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		if (J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
 			toggleSuspendOnJavaThreads(currentThread, TRUE, TRUE);
 		}
-		j9tty_printf(PORTLIB, "CP19\n\n\n");
+		printf( "CP19\n\n\n");
 		syslogOptions = (char *)j9mem_allocate_memory(STRING_BUFFER_SIZE, J9MEM_CATEGORY_VM);
 		if (NULL == syslogOptions) {
 			systemReturnCode = J9_NATIVE_STRING_OUT_OF_MEMORY;
@@ -1762,14 +1762,14 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			j9port_control(OMRPORT_CTLDATA_SYSLOG_CLOSE, 0);
 			syslogFlagNone = FALSE;
 		}
-		j9tty_printf(PORTLIB, "CP20\n\n\n");
+		printf( "CP20\n\n\n");
 		TRIGGER_J9HOOK_VM_CRIU_CHECKPOINT(vm->hookInterface, currentThread);
 
 		malloc_trim(0);
 		Trc_VM_criu_before_checkpoint(currentThread, j9time_nano_time(), j9time_current_time_nanos(&success));
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_CHECKPOINT_PHASE_END);
 		criuDumpReturnCode = vm->checkpointState.criuDumpFunctionPointerType();
-		j9tty_printf(PORTLIB, "THE CRIU DUMP RETURN CODE IS: %d\n\n", criuDumpReturnCode);
+		printf( "THE CRIU DUMP RETURN CODE IS: %d\n\n", (int)criuDumpReturnCode);
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_RESTORE_PHASE_START);
 		restoreNanoTimeMonotonic = j9time_nano_time();
 		restoreNanoUTCTime = j9time_current_time_nanos(&success);
@@ -1783,7 +1783,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			j9mem_free_memory(syslogOptions);
 			goto wakeJavaThreadsWithExclusiveVMAccess;
 		}
-		j9tty_printf(PORTLIB, "CP21\n\n\n");
+		printf( "CP21\n\n\n");
 		vm->checkpointState.lastRestoreTimeInNanoseconds = (I_64)restoreNanoUTCTime;
 		Trc_VM_criu_after_dump(currentThread, restoreNanoTimeMonotonic, vm->checkpointState.lastRestoreTimeInNanoseconds);
 		criuRestorePid = j9sysinfo_get_ppid();
@@ -1797,7 +1797,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			j9mem_free_memory(syslogOptions);
 			goto wakeJavaThreadsWithExclusiveVMAccess;
 		}
-		j9tty_printf(PORTLIB, "CP22\n\n\n");
+		printf( "CP22\n\n\n");
 		vm->checkpointState.processRestoreStartTimeInNanoseconds = (I_64)restoreNanoUTCTime;
 		Trc_VM_criu_process_restore_start_after_dump(currentThread, criuRestorePid, vm->checkpointState.processRestoreStartTimeInNanoseconds);
 		if (!syslogFlagNone) {
@@ -1806,16 +1806,16 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			vmFuncs->setLogOptions(vm, syslogOptions);
 		}
 		j9mem_free_memory(syslogOptions);
-		j9tty_printf(PORTLIB, "CP23\n\n\n");
+		printf( "CP23\n\n\n");
 		if (criuDumpReturnCode >= 0) {
 			
 			/* Set this if the dump succeeded. If it doesnt succeed we still need to run some of the restore
 			 * code as some threads are waiting to be notified.
 			 */
-			j9tty_printf(PORTLIB, "THIS BLOCK IS ENTERED!!!\n\n\n");
+			printf( "THIS BLOCK IS ENTERED!!!\n\n\n");
 			isAfterCheckpoint = TRUE;
 		}
-		j9tty_printf(PORTLIB, "CP23\n\n\n");
+		printf( "CP23\n\n\n");
 		if (isAfterCheckpoint) {
 			switch (loadRestoreArguments(currentThread, optionsFileChars, envFileChars)) {
 			case RESTORE_ARGS_RETURN_OPTIONS_FILE_FAILED:
@@ -1830,7 +1830,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				break;
 			}
 		}
-		j9tty_printf(PORTLIB, "CP24\n\n\n");
+		printf( "CP24\n\n\n");
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_RESTORE_PHASE_JAVA_HOOKS);
 
 		/* Run internal restore hooks, and cleanup */
