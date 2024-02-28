@@ -62,6 +62,7 @@ if [ "$((${MEMORY2}))" -ne 9223372036854771712 ] && [ -n "$MEMORY2" ]; then
 else
     MEMORY=$((1024*MEMORY))
 fi
+echo "actual memory use"
 echo $MEMORY
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
@@ -83,11 +84,14 @@ Xsoftmx=""
 if [ "${13}" == true ]; then
     Xsoftmx="-Xsoftmx$((MEMORY/2))"
 fi
+echo "Xmx"
 echo $Xmx
+echo "MaxRAMPercentage"
 echo $MaxRAMPercentage
+echo "Xms"
 echo $Xms
+echo "Xsoftmx"
 echo $Xsoftmx
-echo "HERE"
 echo "$2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
 $2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
 
@@ -95,15 +99,25 @@ if [ "$7" != true ]; then
     NUM_CHECKPOINT=$6
     for ((i=0; i<$NUM_CHECKPOINT; i++)); do
         sleep 2;
-        criu restore -D ./cpData --shell-job >criuOutput 2>&1;
+        criu restore -D ./cpData --shell-job -v4 --log-file=restore.log >criuOutput 2>&1;
     done
 fi
 echo "test output"
 cat testOutput;
+echo "end test output"
+echo ""
 echo "restore output"
 cat criuOutput
+echo "end restore output"
+echo ""
+echo "restore log"
+cat cpData/restore.log
+echo "end restore log"
+echo ""
 echo "restore verbose"
 cat output.txt
+echo "end restore verbose"
+echo ""
 if grep -q "Unable to create a thread" criuOutput
 then
     echo "reach thread error 1"
