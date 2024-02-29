@@ -43,25 +43,8 @@ echo "export GLIBC_TUNABLES=glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AV
 export GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.cpu.hwcaps=-XSAVEC,-XSAVE,-AVX2,-ERMS,-AVX,-AVX_Fast_Unaligned_Load
 echo "export LD_BIND_NOT=on";
 export LD_BIND_NOT=on
-$2 -verbose:gc >initialCheck 2>&1;
-ifMemLimit=$(cat initialCheck | grep "container memory limit set" | cut -d'"' -f 4)
-echo $ifMemLimit
-# if [ "${ifMemLimit}" = "false" ]; then
-#     echo "Not a target testing situation, test terminated."
-#     exit 1
-# else
-#     echo "target platform"
-# fi
 MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-MEMORY2=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-echo $MEMORY
-echo $MEMORY2
-
-if [ "$((${MEMORY2}))" -ne 9223372036854771712 ] && [ -n "$MEMORY2" ]; then
-    MEMORY=$MEMORY2
-else
-    MEMORY=$((1024*MEMORY))
-fi
+MEMORY=$((1024*MEMORY))
 echo "actual memory use"
 echo $MEMORY
 XDynamicHeapAdjustment=""
@@ -109,10 +92,6 @@ echo ""
 echo "restore output"
 cat criuOutput
 echo "end restore output"
-echo ""
-echo "restore log"
-cat cpData/restore.log
-echo "end restore log"
 echo ""
 echo "restore verbose"
 cat output.txt

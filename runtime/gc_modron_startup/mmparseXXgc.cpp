@@ -1561,22 +1561,8 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			continue;
 		}
 
-		if (try_scan(&scan_start, "fvtest_testRAMSizePercentage=")) {
-			j9tty_printf(PORTLIB, "Current usablePhysicalMemory before is: %llu\n", extensions->usablePhysicalMemory);
-			UDATA localRAMSizePercent = 0;
-			if(!scan_udata_helper(vm, &scan_start, &localRAMSizePercent, "fvtest_testRAMSizePercentage=")){
-				returnValue = JNI_EINVAL;
-				break;
-			}
-			if ((0 > localRAMSizePercent) || (500 < localRAMSizePercent)) {
-				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_testRAMSizePercentage=", (UDATA)0, (UDATA)500);
-				returnValue = JNI_EINVAL;
-				break;
-			}
-			extensions->testRAMSizePercentage = (double)localRAMSizePercent;
-			if (0.0 <= extensions->testRAMSizePercentage) {
-				extensions->usablePhysicalMemory = (uint64_t)(extensions->testRAMSizePercentage / 100.0 * extensions->usablePhysicalMemory);
-			}
+		if (try_scan(&scan_start, "fvtest_testContainerMemLimit")) {
+			extensions->testContainerMemLimit = true;
 			continue;
 		}
 

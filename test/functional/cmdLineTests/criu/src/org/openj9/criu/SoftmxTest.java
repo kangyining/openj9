@@ -68,13 +68,13 @@ public class SoftmxTest {
 	static void PercentAndSoftmx(Integer percent_type, Integer restore_type) {
 		String optionsContents = "-XXgc:fvtest_testRAMSizePercentage=";
 		if (1 == percent_type) {
-			optionsContents += "50";
+			optionsContents += "25";
 		}
 		else if (2 == percent_type) {
-			optionsContents += "100";
+			optionsContents += "50";
 		}
 		else if (3 == percent_type) {
-			optionsContents += "150";
+			optionsContents += "75";
 		}
 		optionsContents += "\n-Xverbosegclog:output.txt";
 		if (1 == restore_type) {

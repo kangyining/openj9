@@ -221,7 +221,7 @@ public:
 	bool recycleRemainders; /**< true if need to recycle TLHRemainders at the end of PGC, for balanced GC only */
 
 	bool forceGPFOnHeapInitializationError; /**< if set causes GPF generation on heap initialization error */
-
+	bool testContainerMemLimit; /**< if set simulate a container with memory limit set */
 	enum ContinuationListOption {
 		disable_continuation_list = 0,
 		enable_continuation_list = 1,
@@ -429,6 +429,7 @@ public:
 		, freeSizeThresholdForSurvivor(DEFAULT_SURVIVOR_THRESHOLD)
 		, recycleRemainders(true)
 		, forceGPFOnHeapInitializationError(false)
+		, testContainerMemLimit(false)
 		, continuationListOption(enable_continuation_list)
 		, timingAddContinuationInList(onCreated)
 		, testRAMSizePercentage(-1.0)
