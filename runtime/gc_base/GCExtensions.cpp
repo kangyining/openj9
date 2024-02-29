@@ -249,31 +249,35 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 {
 	OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
 	uintptr_t maxMemoryValue = memoryMax;
-	if (OMR_CGROUP_SUBSYSTEM_MEMORY == omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY)) {
-		if (omrsysinfo_cgroup_is_memlimit_set()) {
-			/* If running in a cgroup with memory limit > 1G, reserve at-least 512M for JVM's internal requirements
-			 * like JIT compilation etc, and extend default max heap memory to at-most 75% of cgroup limit.
-			 * The value reserved for JVM's internal requirements excludes heap. This value is a conservative
-			 * estimate of the JVM's internal requirements, given that one compilation thread can use up to 256M.
-			 */
+	omrtty_printf("Beginning maxmemory value is: %llu\n", maxMemoryValue);
+	if ((OMR_CGROUP_SUBSYSTEM_MEMORY == omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY) && omrsysinfo_cgroup_is_memlimit_set()) 
+		|| -1 != testRAMSizePercentage) {
+		omrtty_printf("cp1\n");
+		/* If running in a cgroup with memory limit > 1G, reserve at-least 512M for JVM's internal requirements
+			* like JIT compilation etc, and extend default max heap memory to at-most 75% of cgroup limit.
+			* The value reserved for JVM's internal requirements excludes heap. This value is a conservative
+			* estimate of the JVM's internal requirements, given that one compilation thread can use up to 256M.
+			*/
 #define OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP ((uint64_t)512 * 1024 * 1024)
-			maxMemoryValue = (uintptr_t)OMR_MAX((int64_t)(usablePhysicalMemory / 2), (int64_t)(usablePhysicalMemory - OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP));
-			maxMemoryValue = (uintptr_t)OMR_MIN(maxMemoryValue, (usablePhysicalMemory / 4) * 3);
+		maxMemoryValue = (uintptr_t)OMR_MAX((int64_t)(usablePhysicalMemory / 2), (int64_t)(usablePhysicalMemory - OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP));
+		maxMemoryValue = (uintptr_t)OMR_MIN(maxMemoryValue, (usablePhysicalMemory / 4) * 3);
 #undef OPENJ9_IN_CGROUP_NATIVE_FOOTPRINT_EXCLUDING_HEAP
-		}
+		omrtty_printf("cp1 maxmemory value is: %llu\n", maxMemoryValue);
 	}
 
 #if defined(OMR_ENV_DATA64)
 	if (!enableOriginalJDK8HeapSizeCompatibilityOption) {
 		/* extend java default max memory to 25% of usable RAM */
+		omrtty_printf("cp2\n");
 		maxMemoryValue = OMR_MAX(maxMemoryValue, usablePhysicalMemory / 4);
 	}
-
+	omrtty_printf("cp2 maxmemory value is: %llu\n", maxMemoryValue);
 	/* limit maxheapsize up to MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS, then can set 3bit compressedrefs as the default */
 	maxMemoryValue = OMR_MIN(maxMemoryValue, MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS);
 #endif /* OMR_ENV_DATA64 */
-
+	omrtty_printf("Current heapAlignment is: %llu\n", heapAlignment);
 	maxMemoryValue = MM_Math::roundToFloor(heapAlignment, maxMemoryValue);
+	omrtty_printf("Current maxmemory value is: %llu\n", maxMemoryValue);
 	return maxMemoryValue;
 }
 
