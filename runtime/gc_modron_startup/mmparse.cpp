@@ -1694,6 +1694,11 @@ gcParseCommandLineAndInitializeWithValues(J9JavaVM *vm, IDATA *memoryParameters)
 			}
 		}
 		/* set default max heap for Java */
+		IDATA testContainerMemLimitEnabled = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:+fvtest_testContainerMemLimit", NULL);
+		IDATA testContainerMemLimitDisabled = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:-fvtest_testContainerMemLimit", NULL);
+		if (testContainerMemLimitEnabled > testContainerMemLimitDisabled) {
+			extensions->testContainerMemLimit = true;
+		}
 		extensions->memoryMax = extensions->computeDefaultMaxHeapForJava(enableOriginalJDK8HeapSizeCompatibilityOption);
 		extensions->maxSizeDefaultMemorySpace = extensions->memoryMax;
 	}

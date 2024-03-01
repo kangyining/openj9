@@ -26,8 +26,8 @@
 
 <suite id="J9 Criu Command-Line Option Tests" timeout="300">
   <variable name="MAINCLASS_OPTIONSFILE_TEST" value="org.openj9.criu.SoftmxTest" />
-  <test id="Create Criu Checkpoint with softmx 1 dynamic none@25">
-    <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSize 1 false false true false false false false 3 16</command>
+  <test id="Create Criu Checkpoint with softmx 1 dynamic none@50">
+    <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ HalfSize 1 false false true false false false false 3 8</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
     <output type="failure" caseSensitive="yes" regex="no">failed properties test</output>
     <output type="required" caseSensitive="yes" regex="no">Pre-checkpoint</output>
@@ -46,7 +46,7 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
   </test>
-  <!-- <test id="Create Criu Checkpoint with softmx 1 dynamic none@100">
+  <test id="Create Criu Checkpoint with softmx 1 dynamic none@100">
     <command>bash $SCRIPPATH$ $TEST_RESROOT$ $JAVA_COMMAND$ "$JVM_OPTIONS$" $MAINCLASS_OPTIONSFILE_TEST$ FullSize 1 false false true false false false false 0 0</command>
     <output type="success" caseSensitive="no" regex="no">Killed</output>
     <output type="failure" caseSensitive="yes" regex="no">failed properties test</output>
@@ -1015,5 +1015,5 @@
     <output type="failure" caseSensitive="yes" regex="no">Error condition: softMX value should be 0 but it's not</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the proposed softmx doesn't equal the actual one</output>
     <output type="failure" caseSensitive="yes" regex="no">Error condition: the denominator should never be 0</output>
-  </test> -->
+  </test>
 </suite>

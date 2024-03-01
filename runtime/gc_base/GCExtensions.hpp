@@ -222,6 +222,7 @@ public:
 
 	bool forceGPFOnHeapInitializationError; /**< if set causes GPF generation on heap initialization error */
 	bool testContainerMemLimit; /**< if set simulate a container with memory limit set */
+
 	enum ContinuationListOption {
 		disable_continuation_list = 0,
 		enable_continuation_list = 1,

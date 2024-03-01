@@ -3232,6 +3232,9 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 			 * always pass false to computeDefaultMaxHeapForJava().
 			 */
 			candidateSoftMx = extensions->computeDefaultMaxHeapForJava(false);
+			if (extensions->testContainerMemLimit) {
+				j9tty_printf(PORTLIB, "Current heapAlignment value is: %llu\n", extensions->heapAlignment);
+			}
 			j9tty_printf(PORTLIB, "Current candidateSoftmx value is: %llu\n", candidateSoftMx);
 		}
 		/**

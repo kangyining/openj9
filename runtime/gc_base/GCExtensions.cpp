@@ -250,8 +250,9 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 	OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
 	uintptr_t maxMemoryValue = memoryMax;
 	omrtty_printf("Beginning maxmemory value is: %llu\n", maxMemoryValue);
-	if ((OMR_CGROUP_SUBSYSTEM_MEMORY == omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY) && omrsysinfo_cgroup_is_memlimit_set()) 
-		|| -1 != testRAMSizePercentage) {
+	omrtty_printf("If testContainerMemLimit %llu\n", (int) testContainerMemLimit);
+	if ((OMR_CGROUP_SUBSYSTEM_MEMORY == omrsysinfo_cgroup_are_subsystems_enabled(OMR_CGROUP_SUBSYSTEM_MEMORY) && omrsysinfo_cgroup_is_memlimit_set())
+		|| testContainerMemLimit) {
 		omrtty_printf("cp1\n");
 		/* If running in a cgroup with memory limit > 1G, reserve at-least 512M for JVM's internal requirements
 			* like JIT compilation etc, and extend default max heap memory to at-most 75% of cgroup limit.
@@ -275,7 +276,6 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 	/* limit maxheapsize up to MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS, then can set 3bit compressedrefs as the default */
 	maxMemoryValue = OMR_MIN(maxMemoryValue, MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS);
 #endif /* OMR_ENV_DATA64 */
-	omrtty_printf("Current heapAlignment is: %llu\n", heapAlignment);
 	maxMemoryValue = MM_Math::roundToFloor(heapAlignment, maxMemoryValue);
 	omrtty_printf("Current maxmemory value is: %llu\n", maxMemoryValue);
 	return maxMemoryValue;

@@ -75,20 +75,24 @@ echo "Xms"
 echo $Xms
 echo "Xsoftmx"
 echo $Xsoftmx
-echo "$2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
-$2 -XX:+EnableCRIUSupport $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
+echo "$2 -XX:+EnableCRIUSupport -XX:+fvtest_testContainerMemLimit $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;"
+$2 -XX:+EnableCRIUSupport -XX:+fvtest_testContainerMemLimit $XDynamicHeapAdjustment $Xmx $MaxRAMPercentage $Xms $Xsoftmx $3 -cp "$1/criu.jar" $4 $5 $6 >testOutput 2>&1;
 
 if [ "$7" != true ]; then
     NUM_CHECKPOINT=$6
     for ((i=0; i<$NUM_CHECKPOINT; i++)); do
         sleep 2;
-        criu restore -D ./cpData --shell-job -v4 --log-file=restore.log >criuOutput 2>&1;
+        criu restore -D ./cpData --shell-job >criuOutput 2>&1;
     done
 fi
+heapAlignment=""
 echo "test output"
 cat testOutput;
 echo "end test output"
 echo ""
+heapAlignment=$(grep "Current heapAlignment value" testOutput | awk -F: '{print $2}')
+echo "heap"
+echo $heapAlignment
 echo "restore output"
 cat criuOutput
 echo "end restore output"
@@ -130,7 +134,7 @@ if ["$((${15}))" -eq 0]; then
     exit 1
 else
     echo "Both are not 0, we check the proposed softmx against the actual one."
-    if [ "$softMX" -eq "$(($MEMORY*${14}/${15}))" ]; then
+    if [ "$softMX" -eq "$(($MEMORY*${14}/${15}-$Memory%$heapAlignment))" ]; then
         echo "Success condition: The proposed softmx equals the actual one."
     else
         echo "Error condition: the proposed softmx doesn't equal the actual one."
