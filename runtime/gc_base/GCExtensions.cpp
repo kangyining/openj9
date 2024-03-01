@@ -273,8 +273,11 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 		maxMemoryValue = OMR_MAX(maxMemoryValue, usablePhysicalMemory / 4);
 	}
 	omrtty_printf("cp2 maxmemory value is: %llu\n", maxMemoryValue);
-	/* limit maxheapsize up to MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS, then can set 3bit compressedrefs as the default */
-	maxMemoryValue = OMR_MIN(maxMemoryValue, MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS);
+	if (!testContainerMemLimit) {
+		/* limit maxheapsize up to MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS, then can set 3bit compressedrefs as the default */
+		maxMemoryValue = OMR_MIN(maxMemoryValue, MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS);
+	}
+	
 #endif /* OMR_ENV_DATA64 */
 	maxMemoryValue = MM_Math::roundToFloor(heapAlignment, maxMemoryValue);
 	omrtty_printf("Current maxmemory value is: %llu\n", maxMemoryValue);
