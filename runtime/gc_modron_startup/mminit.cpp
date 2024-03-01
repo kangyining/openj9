@@ -3202,7 +3202,6 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 	if (0.0 <= extensions->testRAMSizePercentage) {
 		extensions->usablePhysicalMemory = (uint64_t)(extensions->testRAMSizePercentage / 100.0 * extensions->usablePhysicalMemory);
 	}
-	j9tty_printf(PORTLIB, "Current physical Memory is: %llu\n", extensions->usablePhysicalMemory);
 	/* If the thread count is being forced, check its validity and display a warning message if it is invalid, then mark it as invalid. */
 	if (extensions->gcThreadCountSpecified && (extensions->gcThreadCount < extensions->dispatcher->threadCountMaximum())) {
 		j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_GC_THREAD_VALUE_MUST_BE_ABOVE_WARN, (UDATA)extensions->dispatcher->threadCountMaximum());
@@ -3235,7 +3234,6 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 			if (extensions->testContainerMemLimit) {
 				j9tty_printf(PORTLIB, "Current heapAlignment value is: %llu\n", extensions->heapAlignment);
 			}
-			j9tty_printf(PORTLIB, "Current candidateSoftmx value is: %llu\n", candidateSoftMx);
 		}
 		/**
 		 * When dynamicHeapAdjustmentForRestore is set, the candidateSoftmx is

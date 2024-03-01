@@ -1518,7 +1518,9 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		UDATA criuRestorePid = 0;
 		U_32 intGhostFileLimit = 0;
 		IDATA criuDumpReturnCode = 0;
+
 		vmFuncs->internalEnterVMFromJNI(currentThread);
+
 		Assert_VM_criu_notNull(imagesDir);
 		cpDir = J9_JNI_UNWRAP_REFERENCE(imagesDir);
 		systemReturnCode = getNativeString(currentThread, cpDir, &directoryChars, STRING_BUFFER_SIZE);
@@ -1533,6 +1535,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING, NULL);
 			goto freeDir;
 		}
+
 		if (NULL != logFile) {
 			log = J9_JNI_UNWRAP_REFERENCE(logFile);
 			systemReturnCode = getNativeString(currentThread, log, &logFileChars, STRING_BUFFER_SIZE);
@@ -1548,6 +1551,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto freeLog;
 			}
 		}
+
 		if (NULL != optionsFile) {
 			optFile = J9_JNI_UNWRAP_REFERENCE(optionsFile);
 			systemReturnCode = getNativeString(currentThread, optFile, &optionsFileChars, STRING_BUFFER_SIZE);
@@ -1565,6 +1569,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			optionsFileChars = NULL;
 		}
+
 		if (NULL != environmentFile) {
 			envFile = J9_JNI_UNWRAP_REFERENCE(environmentFile);
 			systemReturnCode = getNativeString(currentThread, envFile, &envFileChars, STRING_BUFFER_SIZE);
@@ -1582,6 +1587,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			envFileChars = NULL;
 		}
+
 		if (NULL != workDir) {
 			wrkDir = J9_JNI_UNWRAP_REFERENCE(workDir);
 			systemReturnCode = getNativeString(currentThread, wrkDir, &workDirChars, STRING_BUFFER_SIZE);
@@ -1597,6 +1603,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto freeWorkDir;
 			}
 		}
+
 		dirFD = open(directoryChars, O_DIRECTORY);
 		if (dirFD < 0) {
 			systemReturnCode = errno;
@@ -1604,6 +1611,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR, NULL);
 			goto freeWorkDir;
 		}
+
 		if (NULL != workDir) {
 			workDirFD = open(workDirChars, O_DIRECTORY);
 			if (workDirFD < 0) {
@@ -1613,12 +1621,14 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto closeDirFD;
 			}
 		}
+
 		systemReturnCode = vm->checkpointState.criuInitOptsFunctionPointerType();
 		if (0 != systemReturnCode) {
 			currentExceptionClass = vm->checkpointState.criuSystemCheckpointExceptionClass;
 			nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_CRIU_INIT_FAILED, NULL);
 			goto closeWorkDirFD;
 		}
+
 		if (JNI_TRUE == unprivileged) {
 			if (NULL != vm->checkpointState.criuSetUnprivilegedFunctionPointerType) {
 				systemReturnCode = J9_CRIU_UNPRIVILEGED_NO_ERROR;
@@ -1630,6 +1640,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				goto closeWorkDirFD;
 			}
 		}
+
 		vm->checkpointState.criuSetImagesDirFdFunctionPointerType(dirFD);
 		vm->checkpointState.criuSetShellJobFunctionPointerType(JNI_FALSE != shellJob);
 		if (logLevel > 0) {
@@ -1644,6 +1655,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		vm->checkpointState.criuSetTcpEstablishedFunctionPointerType(JNI_FALSE != tcpEstablished);
 		vm->checkpointState.criuSetAutoDedupFunctionPointerType(JNI_FALSE != autoDedup);
 		vm->checkpointState.criuSetTrackMemFunctionPointerType(JNI_FALSE != trackMemory);
+
 		if (-1 != ghostFileLimit) {
 			intGhostFileLimit = (U_32)(U_64)ghostFileLimit;
 			if (0 != intGhostFileLimit) {
@@ -1654,6 +1666,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		if (NULL != workDir) {
 			vm->checkpointState.criuSetWorkDirFdFunctionPointerType(workDirFD);
 		}
+
 		acquireSafeOrExcusiveVMAccess(currentThread, vmFuncs, safePoint);
 
 		notSafeToCheckpoint = checkIfSafeToCheckpoint(currentThread);
@@ -1666,6 +1679,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			acquireSafeOrExcusiveVMAccess(currentThread, vmFuncs, safePoint);
 			notSafeToCheckpoint = checkIfSafeToCheckpoint(currentThread);
 		}
+
 		if ((J9VM_DELAYCHECKPOINT_NOTCHECKPOINTSAFE == notSafeToCheckpoint)
 			|| ((J9VM_DELAYCHECKPOINT_CLINIT == notSafeToCheckpoint) && J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_THROW_ON_DELAYED_CHECKPOINT_ENABLED))
 		) {
@@ -1679,6 +1693,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		} else {
 			Trc_VM_criu_checkpointJVMImpl_checkpointWithActiveCLinit(currentThread);
 		}
+
 		toggleSuspendOnJavaThreads(currentThread, TRUE, FALSE);
 
 		vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_CRIU_SINGLE_THREAD_MODE|J9_EXTENDED_RUNTIME2_CRIU_SINGLE_THROW_BLOCKING_EXCEPTIONS;
@@ -1690,6 +1705,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			/* throw the pending exception */
 			goto wakeJavaThreads;
 		}
+
 		/* At this point, Java threads are all finished, and JVM is considered paused before taking the checkpoint. */
 		vm->checkpointState.checkpointRestoreTimeDelta = 0;
 		portLibrary->nanoTimeMonotonicClockDelta = 0;
@@ -1703,6 +1719,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		}
 		Trc_VM_criu_checkpoint_nano_times(currentThread, checkpointNanoTimeMonotonic, checkpointNanoUTCTime);
 		TRIGGER_J9HOOK_VM_PREPARING_FOR_CHECKPOINT(vm->hookInterface, currentThread);
+
 		/* GC releases threads in a multi-thread fashion. Threads will need to remove
 		 * themselves from the threadgroup which requires a lock. Disable deadlock detection
 		 * temporarily while this happens.
@@ -1724,6 +1741,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 		if (J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
 			toggleSuspendOnJavaThreads(currentThread, TRUE, TRUE);
 		}
+
 		syslogOptions = (char *)j9mem_allocate_memory(STRING_BUFFER_SIZE, J9MEM_CATEGORY_VM);
 		if (NULL == syslogOptions) {
 			systemReturnCode = J9_NATIVE_STRING_OUT_OF_MEMORY;
@@ -1743,6 +1761,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			j9port_control(OMRPORT_CTLDATA_SYSLOG_CLOSE, 0);
 			syslogFlagNone = FALSE;
 		}
+
 		TRIGGER_J9HOOK_VM_CRIU_CHECKPOINT(vm->hookInterface, currentThread);
 
 		malloc_trim(0);
@@ -1783,13 +1802,14 @@ criuCheckpointJVMImpl(JNIEnv *env,
 			vmFuncs->setLogOptions(vm, syslogOptions);
 		}
 		j9mem_free_memory(syslogOptions);
+
 		if (criuDumpReturnCode >= 0) {
-			
 			/* Set this if the dump succeeded. If it doesnt succeed we still need to run some of the restore
 			 * code as some threads are waiting to be notified.
 			 */
 			isAfterCheckpoint = TRUE;
 		}
+
 		if (isAfterCheckpoint) {
 			switch (loadRestoreArguments(currentThread, optionsFileChars, envFileChars)) {
 			case RESTORE_ARGS_RETURN_OPTIONS_FILE_FAILED:
@@ -1804,6 +1824,7 @@ criuCheckpointJVMImpl(JNIEnv *env,
 				break;
 			}
 		}
+
 		VM_VMHelpers::setVMState(currentThread, J9VMSTATE_CRIU_SUPPORT_RESTORE_PHASE_JAVA_HOOKS);
 
 		/* Run internal restore hooks, and cleanup */
