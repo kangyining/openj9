@@ -271,7 +271,6 @@ MM_GCExtensions::computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCom
 
 	/* limit maxheapsize up to MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS, then can set 3bit compressedrefs as the default */
 	maxMemoryValue = OMR_MIN(maxMemoryValue, MAXIMUM_HEAP_SIZE_RECOMMENDED_FOR_3BIT_SHIFT_COMPRESSEDREFS);
-	
 #endif /* OMR_ENV_DATA64 */
 
 	maxMemoryValue = MM_Math::roundToFloor(heapAlignment, maxMemoryValue);
