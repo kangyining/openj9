@@ -305,34 +305,6 @@ option_set_to_opt_integer(J9JavaVM* vm, const char* option, IDATA* optionIndex, 
  * @note optionIndex contains position of argument on command line if success returned, else -1
  */
 static IDATA
-option_set_to_opt_double_args(J9JavaVM* vm, const char* option, IDATA* optionIndex, IDATA match, double* address, J9VMInitArgs* args)
-{
-	IDATA returnCode = OPTION_OK;
-	double value = 0.0;
-
-	IDATA element = FIND_AND_CONSUME_ARG2(args, match, option, NULL);
-	*optionIndex = element;
-
-	if (element >= 0) {
-		returnCode = GET_DOUBLE_VALUE_ARGS(args, element, option, value);
-		if (OPTION_OK == returnCode) {
-			*address = value;
-		}
-	}
-	return returnCode;
-}
-
-/**
- * Find, consume and record an option from the argument list.
- * Given an option string and the match type, find the argument in the to be consumed list.
- * If not found, return success.
- * If found, consume it, verify the memory value.
- *
- * @return OPTION_OK if option is found and consumed or option not present, OPTION_MALFORMED if the option was malformed, OPTION_OVERFLOW if the option overflowed.
- * @note value stored at address is invalid if failure returned
- * @note optionIndex contains position of argument on command line if success returned, else -1
- */
-static IDATA
 option_set_to_opt_double(J9JavaVM* vm, const char* option, IDATA* optionIndex, IDATA match, double* address)
 {
 	IDATA returnCode = OPTION_OK;
@@ -1378,21 +1350,6 @@ gcParseReconfigurableCommandLine(J9JavaVM* vm, J9VMInitArgs* args)
 		}
 		extensions->softMx = softmx;
 	}
-	if (-1 != FIND_ARG_IN_ARGS(args, EXACT_MEMORY_MATCH, "-XXgc:fvtest_testRAMSizePercentage=", NULL)) {
-		double localRAMSizePercent = 0;
-		result = option_set_to_opt_double_args(vm, "-XXgc:fvtest_testRAMSizePercentage=", &index, EXACT_MEMORY_MATCH, &localRAMSizePercent, args);
-		if (OPTION_OK != result) {
-			if (OPTION_MALFORMED == result) {
-				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_MUST_BE_NUMBER, "XXgc:fvtest_testRAMSizePercentage");
-			}
-			goto _error;
-		}
-		if ((0 > localRAMSizePercent) || (500 < localRAMSizePercent)) {
-			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_INTEGER_OUT_OF_RANGE, "fvtest_testRAMSizePercentage=", (UDATA)0, (UDATA)500);
-			goto _error;
-		}
-		extensions->testRAMSizePercentage = localRAMSizePercent;
-	}
 	if (!gcParseReconfigurableSoverignArguments(vm, args)) {
 		goto _error;
 	}
@@ -1694,11 +1651,6 @@ gcParseCommandLineAndInitializeWithValues(J9JavaVM *vm, IDATA *memoryParameters)
 			}
 		}
 		/* set default max heap for Java */
-		IDATA testContainerMemLimitEnabled = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:+fvtest_testContainerMemLimit", NULL);
-		IDATA testContainerMemLimitDisabled = FIND_AND_CONSUME_VMARG(EXACT_MATCH, "-XX:-fvtest_testContainerMemLimit", NULL);
-		if (testContainerMemLimitEnabled > testContainerMemLimitDisabled) {
-			extensions->testContainerMemLimit = true;
-		}
 		extensions->memoryMax = extensions->computeDefaultMaxHeapForJava(enableOriginalJDK8HeapSizeCompatibilityOption);
 		extensions->maxSizeDefaultMemorySpace = extensions->memoryMax;
 	}

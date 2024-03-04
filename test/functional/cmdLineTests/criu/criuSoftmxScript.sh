@@ -47,6 +47,11 @@ MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 MEMORY=$((1024*MEMORY))
 echo "actual memory use"
 echo $MEMORY
+UPPER=26843545600
+if [ "$MEMORY" -ge "$UPPER"]; then
+    echo "Skip. Machine RAM too large"
+    exit 1
+fi
 XDynamicHeapAdjustment=""
 if [ "$9" == true ]; then
     XDynamicHeapAdjustment="-XX:+dynamicHeapAdjustmentForRestore"
