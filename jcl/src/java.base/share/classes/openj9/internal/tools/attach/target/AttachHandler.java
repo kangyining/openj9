@@ -20,20 +20,23 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
-
 package openj9.internal.tools.attach.target;
 
 import static openj9.internal.tools.attach.target.IPC.LOGGING_DISABLED;
 import static openj9.internal.tools.attach.target.IPC.LOGGING_ENABLED;
 import static openj9.internal.tools.attach.target.IPC.loggingStatus;
 
+import com.ibm.oti.vm.VM;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.util.Properties;
 import java.util.Vector;
-
-import com.ibm.oti.vm.VM;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class handles incoming attachment requests from other VMs. Must be
@@ -55,7 +58,7 @@ public class AttachHandler extends Thread {
 	/**
 	 * Time delay before we give up trying to terminate the wait loop.
 	 */
-	static final long shutdownTimeoutMs = Integer.getInteger("com.ibm.tools.attach.shutdown_timeout", 10000).longValue(); //$NON-NLS-1$
+	static final long shutdownTimeoutMs = Long.getLong("com.ibm.tools.attach.shutdown_timeout", 10000).longValue(); //$NON-NLS-1$
 	private enum AttachStateValues {
 		ATTACH_UNINITIALIZED, ATTACH_TERMINATED, ATTACH_STARTING, ATTACH_INITIALIZED
 	}
@@ -107,7 +110,7 @@ public class AttachHandler extends Thread {
 	 * but parse it lazily because we rarely need the value.
 	 */
 	public final static String allowAttachSelf =
-			VM.getVMLangAccess().internalGetProperties().getProperty("jdk.attach.allowAttachSelf" //$NON-NLS-1$
+			VM.internalGetProperties().getProperty("jdk.attach.allowAttachSelf" //$NON-NLS-1$
 /*[IF JAVA_SPEC_VERSION >= 9]*/
 					, "false" //$NON-NLS-1$
 /*[ELSE] JAVA_SPEC_VERSION >= 9 */
@@ -118,6 +121,8 @@ public class AttachHandler extends Thread {
 	/* only the attach handler thread uses syncFileLock */
 	/* [PR Jazz 30075] Make syncFileLock an instance variable since it is accessed only by the attachHandler singleton. */
 	FileLock syncFileLock;
+
+	static volatile Thread fileAccessTimeUpdaterThread;
 
 	/**
 	 * Keep the constructor private
@@ -147,7 +152,7 @@ public class AttachHandler extends Thread {
 		/*[PR Jazz 59196 LIR: Disable attach API by default on z/OS (31972)]*/
 		boolean enableAttach = !IPC.isZOS;
 		/* the system property overrides the default */
-		String enableAttachProp = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty("com.ibm.tools.attach.enable");  //$NON-NLS-1$
+		String enableAttachProp = VM.internalGetProperties().getProperty("com.ibm.tools.attach.enable");  //$NON-NLS-1$
 		if (null != enableAttachProp) {
 			if (enableAttachProp.equalsIgnoreCase("no")) { //$NON-NLS-1$
 				enableAttach = false;
@@ -227,7 +232,7 @@ public class AttachHandler extends Thread {
 	 */
 	public void run() {
 		/* Set  the current thread as a System Thread */
-		com.ibm.oti.vm.VM.markCurrentThreadAsSystem();
+		VM.markCurrentThreadAsSystem();
 
 		synchronized (stateSync) { /* CMVC 161729 : shutdown hook may already be running */
 			if (AttachStateValues.ATTACH_UNINITIALIZED == getAttachState()) {
@@ -262,23 +267,24 @@ public class AttachHandler extends Thread {
 	}
 
 	private boolean initialize() throws IOException {
-		String loggingProperty = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(LOGGING_ENABLE_PROPERTY);
-		String logName = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(LOG_NAME_PROPERTY);
+		final Properties internalProperties = VM.internalGetProperties();
+		String loggingProperty = internalProperties.getProperty(LOGGING_ENABLE_PROPERTY);
+		String logName = internalProperties.getProperty(LOG_NAME_PROPERTY);
 		if ((null != logName) && !logName.equals("")) { //$NON-NLS-1$
 			logName = logName + '_';
 		} else {
 			logName = ""; //$NON-NLS-1$
 		}
 
-		nameProperty = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(DISPLAYNAME_PROPERTY);
-		pidProperty = validateVmId(com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(VMID_PROPERTY));
+		nameProperty = internalProperties.getProperty(DISPLAYNAME_PROPERTY);
+		pidProperty = validateVmId(internalProperties.getProperty(VMID_PROPERTY));
 		if ((null == pidProperty) || (0 == pidProperty.length())) {
 			/* CMVC 161414 - PIDs and UIDs are long */
 			long pid = IPC.getProcessId();
 			pidProperty = Long.toString(pid);
 		}
 		if (null == nameProperty) {
-			nameProperty = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty("sun.java.command"); //$NON-NLS-1$
+			nameProperty = internalProperties.getProperty("sun.java.command"); //$NON-NLS-1$
 		}
 		synchronized (IPC.accessorMutex) {
 			if ((null == IPC.logStream) && (null != loggingProperty)
@@ -323,9 +329,90 @@ public class AttachHandler extends Thread {
 		syncFileLock = new FileLock(syncFileObjectTemp.getAbsolutePath(), TargetDirectory.SYNC_FILE_PERMISSIONS);
 		/* give other users read permission to the sync file */
 
+		if (IPC.isLinux) {
+			// Update AttachAPI control file access time every sleepDays (8 days by default).
+			// This is to prevent Linux systemd from deleting the aging files within /tmp after 10 days.
+			// More details at https://github.com/eclipse-openj9/openj9/issues/18720
+			int sleepDays = 8;
+			String fileAccessUpdateTime = internalProperties.getProperty("com.ibm.tools.attach.fileAccessUpdateTime", "8"); //$NON-NLS-1$ //$NON-NLS-2$
+			IPC.logMessage("fileAccessUpdateTime = " + fileAccessUpdateTime); //$NON-NLS-1$
+			try {
+				sleepDays = Integer.parseInt(fileAccessUpdateTime);
+			} catch (NumberFormatException nfe) {
+				// ignore this non-fatal exception, and use the default value
+			}
+			IPC.logMessage("fileAccessTimeUpdaterThread sleepDays = " + sleepDays); //$NON-NLS-1$
+			if (sleepDays > 0) {
+				final long targetIntervalMillis = TimeUnit.DAYS.toMillis(sleepDays);
+				final String lastAccessTime = "lastAccessTime"; //$NON-NLS-1$
+				final String commonDir = CommonDirectory.getCommonDirFileObject().getPath();
+				fileAccessTimeUpdaterThread = new Thread("Attach API update file access time") { //$NON-NLS-1$
+					@Override
+					public void run() {
+						VM.markCurrentThreadAsSystem();
+
+						long lastMillis = System.currentTimeMillis();
+						long sleepMillis = targetIntervalMillis;
+						for (;;) {
+							try {
+								Thread.sleep(sleepMillis);
+							} catch (InterruptedException ie) {
+								// ignore this non-fatal exception
+								IPC.logMessage("fileAccessTimeUpdaterThread received an InterruptedException: " + ie.getMessage()); //$NON-NLS-1$
+							}
+							if (isAttachApiTerminated()) {
+								IPC.logMessage("AttachAPI was terminated, fileAccessTimeUpdaterThread exits"); //$NON-NLS-1$
+								break;
+							}
+							long currentMillis = System.currentTimeMillis();
+							long passedMillis = currentMillis - lastMillis;
+							if (passedMillis >= sleepMillis) {
+								FileTime fileTime = FileTime.fromMillis(currentMillis);
+								IPC.logMessage("fileAccessTimeUpdaterThread currentMillis = " + currentMillis); //$NON-NLS-1$
+								try {
+									// Common directory : _attachlock
+									File attachLock = new File(commonDir, CommonDirectory.ATTACH_LOCK);
+									if (attachLock.exists()) {
+										// _attachlock only appears when there was an attaching request
+										Files.setAttribute(Paths.get(attachLock.getPath()), lastAccessTime, fileTime);
+										IPC.logMessage("fileAccessTimeUpdaterThread updated access time = " + attachLock); //$NON-NLS-1$
+									}
+									// Common directory : _controller
+									Files.setAttribute(Paths.get(commonDir, CommonDirectory.CONTROLLER_LOCKFILE), lastAccessTime, fileTime);
+									// Common directory : _notifier
+									Files.setAttribute(Paths.get(commonDir, CommonDirectory.CONTROLLER_NOTIFIER), lastAccessTime, fileTime);
+									// Target directory : attachNotificationSync
+									Files.setAttribute(Paths.get(TargetDirectory.getSyncFileObject().getPath()), lastAccessTime, fileTime);
+									// Target directory : attachInfo
+									Files.setAttribute(Paths.get(TargetDirectory.getAdvertisementFileObject().getPath()), lastAccessTime, fileTime);
+								} catch (IOException ioe) {
+									// ignore this non-fatal exception
+									IPC.logMessage("fileAccessTimeUpdaterThread received an IOException : " + ioe.getMessage()); //$NON-NLS-1$
+								}
+								// reset for next update
+								sleepMillis = targetIntervalMillis;
+								lastMillis = currentMillis;
+							} else {
+								// continue sleep()
+								sleepMillis = targetIntervalMillis - passedMillis;
+								IPC.logMessage("fileAccessTimeUpdaterThread currentMillis = " + currentMillis //$NON-NLS-1$
+										+ ", passedMillis = " + passedMillis //$NON-NLS-1$
+										+ ", sleepMillis = " + sleepMillis); //$NON-NLS-1$
+							}
+						}
+					}
+				};
+				fileAccessTimeUpdaterThread.setDaemon(true);
+				if (isAttachApiTerminated()) {
+					IPC.logMessage("AttachAPI was already terminated, no need to start fileAccessTimeUpdaterThread"); //$NON-NLS-1$
+					return false;
+				}
+				fileAccessTimeUpdaterThread.start();
+			}
+		}
+
 		return true;
 	}
-
 
 	/**
 	 * Try to read the reply. If it exists, connect to the attacher. This may be called from tryAttachTarget() in the case
@@ -372,7 +459,6 @@ public class AttachHandler extends Thread {
 	 * @return true if the caller should destroy the semaphore
 	 */
 	protected boolean terminate(boolean wakeHandler) {
-
 		if (LOGGING_DISABLED != loggingStatus) {
 			IPC.logMessage("AttachHandler terminate: Attach API is being shut down, currentAttachThread = " + currentAttachThread); //$NON-NLS-1$
 		}
@@ -391,7 +477,12 @@ public class AttachHandler extends Thread {
 				break;
 			}
 		}
-		currentAttachThread.interrupt(); /* do this after we change the attachState */
+		/* do this after we change the attachState */
+		if ((fileAccessTimeUpdaterThread != null) && fileAccessTimeUpdaterThread.isAlive()) {
+			IPC.logMessage("fileAccessTimeUpdaterThread interrupt"); //$NON-NLS-1$
+			fileAccessTimeUpdaterThread.interrupt();
+		}
+		currentAttachThread.interrupt();
 		if (wakeHandler) {
 			if (LOGGING_DISABLED != loggingStatus) {
 				IPC.logMessage("AttachHandler terminate removing contents of directory : ", TargetDirectory.getTargetDirectoryPath(getVmId())); //$NON-NLS-1$
@@ -522,19 +613,72 @@ public class AttachHandler extends Thread {
 			super("Attach API teardown"); //$NON-NLS-1$)
 		}
 
+		private static void threadJoinHelper(Thread thread, long shutdownDeadlineNs) {
+			long timeout = 100;
+			int retryNumber = 0;
+			for (;;) {
+				long currentNanoTime = System.nanoTime();
+				long tempTimeout = TimeUnit.NANOSECONDS.toMillis(shutdownDeadlineNs - currentNanoTime);
+				if (tempTimeout <= 0) {
+					// already reached shutdownDeadlineNs
+					// or ignore the NANOSECONDS.excessNanos() which is less than 1ms
+					IPC.logMessage(thread + " already reached shutdownDeadlineNs : currentNanoTime = " //$NON-NLS-1$
+							+ currentNanoTime + ", tempTimeout = " + tempTimeout); //$NON-NLS-1$
+					break;
+				}
+				if (timeout > tempTimeout) {
+					// not wait beyond shutdownDeadlineNs
+					timeout = tempTimeout;
+				}
+				IPC.logMessage(thread + ": currentNanoTime = " + currentNanoTime //$NON-NLS-1$
+						+ ", tempTimeout = " + tempTimeout //$NON-NLS-1$
+						+ ", timeout = " + timeout); //$NON-NLS-1$
+				try {
+					thread.join(timeout);
+				} catch (InterruptedException e) {
+					IPC.logMessage(thread + ": join() interrupted"); //$NON-NLS-1$
+					break;
+				}
+				State state = thread.getState();
+				if (state == Thread.State.TERMINATED) {
+					// exit if thread is terminated
+					IPC.logMessage(thread + " is terminated, exit"); //$NON-NLS-1$
+					break;
+				}
+				IPC.logMessage(thread + ": state = " + state //$NON-NLS-1$
+						+ ", timeout waiting for termination. Retry #" //$NON-NLS-1$
+						+ retryNumber + ", timeout = " + timeout); //$NON-NLS-1$
+				timeout *= 2;
+				retryNumber += 1;
+				if (thread == currentAttachThread) {
+					IPC.logMessage(thread + ": currentAttachThread requires AttachHandler.terminateWaitLoop()"); //$NON-NLS-1$
+					AttachHandler.terminateWaitLoop(true, retryNumber);
+				} else if (thread == fileAccessTimeUpdaterThread) {
+					IPC.logMessage(thread + ": fileAccessTimeUpdaterThread requires thread.interrupt()"); //$NON-NLS-1$
+					thread.interrupt();
+				} else {
+					throw new InternalError(thread + ": unexpected"); //$NON-NLS-1$
+				}
+			}
+		}
+
 		@Override
 		public void run() {
 			/*[PR CMVC 188652]  Suppress OOM messages from attach API*/
 			try {
 				/* Set  the current thread as a System Thread */
-				com.ibm.oti.vm.VM.markCurrentThreadAsSystem();
+				VM.markCurrentThreadAsSystem();
 				if (LOGGING_DISABLED != loggingStatus) {
 					IPC.logMessage("shutting down attach API : " + mainHandler); //$NON-NLS-1$
 				}
 				if (null == mainHandler) {
 					return; /* the constructor failed */
 				}
-				long shutdownDeadlineNs = System.nanoTime() + shutdownTimeoutMs*1000000;
+				long currentNanoTime = System.nanoTime();
+				long shutdownDeadlineNs = currentNanoTime + TimeUnit.MILLISECONDS.toNanos(shutdownTimeoutMs);
+				IPC.logMessage("currentNanoTime = " + currentNanoTime //$NON-NLS-1$
+						+ ", shutdownTimeoutMs = " + shutdownTimeoutMs //$NON-NLS-1$
+						+ ", shutdownDeadlineNs = " + shutdownDeadlineNs); //$NON-NLS-1$
 				boolean destroySemaphore = mainHandler.terminate(true);
 				try {
 					/*[PR CMVC 172177] Ensure the initializer thread has terminated */
@@ -548,18 +692,9 @@ public class AttachHandler extends Thread {
 					 * currentAttachThread is the same as mainHandler before the wait loop launches.
 					 * In that case, the join is redundant but harmless.
 					 */
-					int timeout = 100;
-					int retryNumber = 0;
-					while (System.nanoTime() < shutdownDeadlineNs) {
-						currentAttachThread.join(timeout); /* timeout in milliseconds */
-						if (currentAttachThread.getState() != Thread.State.TERMINATED) {
-							IPC.logMessage(currentAttachThread + "Timeout waiting for wait loop termination.  Retry #" + retryNumber); //$NON-NLS-1$
-							timeout *= 2;
-							AttachHandler.terminateWaitLoop(true, retryNumber);
-							++retryNumber;
-						} else {
-							break;
-						}
+					threadJoinHelper(currentAttachThread, shutdownDeadlineNs);
+					if ((fileAccessTimeUpdaterThread != null) && fileAccessTimeUpdaterThread.isAlive()) {
+						threadJoinHelper(fileAccessTimeUpdaterThread, shutdownDeadlineNs);
 					}
 				} catch (InterruptedException e) {
 					IPC.logMessage("teardown join with attach handler interrupted"); //$NON-NLS-1$
@@ -708,8 +843,9 @@ public class AttachHandler extends Thread {
 		Attachment.saveLocalConnectorAddress();
 		//If we don't have a local connector address, just continue and get the others
 		Properties agentProperties = new Properties();
+		final Properties internalProperties = VM.internalGetProperties();
 		for (String pName: agentPropertyNames) {
-			String pValue = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(pName);
+			String pValue = internalProperties.getProperty(pName);
 			if (null != pValue) {
 				agentProperties.put(pName, pValue);
 			}

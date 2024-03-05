@@ -27,9 +27,7 @@ exports com.ibm.sharedclasses.spi to
     openj9.sharedclasses;
 exports com.ibm.oti.vm to
     java.management,
-    jdk.attach,
     jdk.management,
-    openj9.criu,
     openj9.cuda,
     openj9.gpu,
     openj9.jvm,
@@ -52,7 +50,7 @@ exports openj9.internal.management to
 exports jdk.internal.org.objectweb.asm to
     openj9.dtfj,
     openj9.dtfjview;
-// Following allows dtfj/dtfjview modules invoke module addReads & addExports programmatically via reflection APIs
+// Following allows dtfj/dtfjview modules invoke module addReads & addExports programmatically via reflection APIs.
 exports jdk.internal.module to
     openj9.dtfj,
     openj9.dtfjview;
@@ -67,9 +65,6 @@ exports jdk.internal.access to
 opens jdk.internal.access to
     openj9.criu;
 /*[ENDIF] JAVA_SPEC_VERSION >= 17 */
-/*[IF CRAC_SUPPORT]*/
-exports jdk.crac;
-/*[ENDIF] CRAC_SUPPORT */
 exports jdk.internal.misc to
     openj9.criu;
 exports openj9.internal.criu to

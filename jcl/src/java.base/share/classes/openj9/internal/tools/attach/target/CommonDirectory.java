@@ -36,11 +36,11 @@ import java.util.Objects;
  *
  */
 public abstract class CommonDirectory {
-	private static final String ATTACH_LOCK = "_attachlock"; //$NON-NLS-1$
+	static final String ATTACH_LOCK = "_attachlock"; //$NON-NLS-1$
 	private static final String COM_IBM_TOOLS_ATTACH_DIRECTORY = "com.ibm.tools.attach.directory"; //$NON-NLS-1$
 	private static final int COMMON_DIRECTORY_PERMISSIONS = 01777; /* allow anyone to create directories, but only owner can delete */
 	private static final int COMMON_LOCK_FILE_PERMISSIONS = 0666; /* allow anyone to create and use the file */
-	private static final String CONTROLLER_LOCKFILE = "_controller"; //$NON-NLS-1$
+	static final String CONTROLLER_LOCKFILE = "_controller"; //$NON-NLS-1$
 	static final String CONTROLLER_NOTIFIER = "_notifier"; //$NON-NLS-1$
 	static final int SEMAPHORE_OKAY = 0;
 	private static final String TRASH_PREFIX = ".trash_"; //$NON-NLS-1$
@@ -93,7 +93,7 @@ public abstract class CommonDirectory {
 
 	private static void initialize() {
 		/* Set the common directory used by all VMs.  Defaults to /tmp/.com_ibm_tools_attach */
-		String ipcDirProperty = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty(COM_IBM_TOOLS_ATTACH_DIRECTORY, 
+		String ipcDirProperty = com.ibm.oti.vm.VM.internalGetProperties().getProperty(COM_IBM_TOOLS_ATTACH_DIRECTORY,
 				(new File(systemTmpDir,".com_ibm_tools_attach")).getPath()); //$NON-NLS-1$
 		/*[PR CMVC 165300 restriction on embedded blanks was unnecessary. Also, trailing separators were redundant. ]*/
 		if (LOGGING_DISABLED != loggingStatus) {
