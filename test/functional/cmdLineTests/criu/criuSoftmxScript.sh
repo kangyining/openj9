@@ -90,7 +90,6 @@ if [ "$7" != true ]; then
         criu restore -D ./cpData --shell-job >criuOutput 2>&1;
     done
 fi
-heapAlignment=""
 echo "test output"
 cat testOutput;
 echo "end test output"
@@ -102,10 +101,6 @@ echo ""
 echo "restore verbose"
 cat output.txt
 echo "end restore verbose"
-heapAlignment=$(($(cat output.txt | grep "pageSize" | cut -d'"' -f 4)))
-echo "heap"
-echo $heapAlignment
-echo ""
 if grep -q "Unable to create a thread" criuOutput
 then
     echo "reach thread error 1"
@@ -122,10 +117,7 @@ echo "actual softmx"
 echo $softMX
 echo "softmx to compare"
 echo $softMX
-echo $((softMX % heapAlignment))
-softMXhealAligned=$((softMX - (softMX % heapAlignment)))
-echo $softMXhealAligned
-processedsoftMX=$((softMXhealAligned - (softMXhealAligned%(64*1024))))
+processedsoftMX=$((softMX - (softMX%(64*1024))))
 echo $processedsoftMX
 if  [ "$7" != true ]; then
     if [ "$8" != true ]; then
@@ -146,16 +138,14 @@ echo ""
 echo "before alignment expected"
 echo $((MEMORY * ${14} / ${15}))
 echo "expected softmx"
-heapAligned=$(((MEMORY * ${14} / ${15}) - ((MEMORY * ${14} / ${15}) % heapAlignment)))
-echo $heapAligned
-expectedsoftMX=$((heapAligned-(heapAligned%(64*1024))))
-echo $expectedsoftMX
+regionAligned=$(((MEMORY * ${14} / ${15}) - ((MEMORY * ${14} / ${15}) % (64*1024))))
+echo $regionAligned
 if [ "$((${15}))" -eq 0 ]; then
     echo "Error condition: the denominator should never be 0."
     exit 1
 else
     echo "Both are not 0, we check the proposed softmx against the actual one."
-    if [ "$processedsoftMX" -eq "$expectedsoftMX" ]; then
+    if [ "$processedsoftMX" -eq "$regionAligned" ]; then
         echo "Success condition: The proposed softmx equals the actual one."
     else
         echo "Error condition: the proposed softmx doesn't equal the actual one."
