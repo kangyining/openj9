@@ -1360,10 +1360,11 @@ independentMemoryParameterVerification(J9JavaVM *javaVM, IDATA* memoryParameters
 	}
 
 	/* Align Xms, verify it is not too large */
+	j9tty_printf(PORTLIB, "Initial Xms is: %llu\n", extensions->initialMemorySize);
 	if (opt_XmsSet) {
 		extensions->initialMemorySize = MM_Math::roundToFloor(extensions->heapAlignment, extensions->initialMemorySize);
 		extensions->initialMemorySize = MM_Math::roundToFloor(extensions->regionSize, extensions->initialMemorySize);
-
+		j9tty_printf(PORTLIB, "second Xms is: %llu\n", extensions->initialMemorySize);
 		if (flatConfiguration) {
 			/* Flat configuration Collector can start with one region */
 			extensions->initialMemorySize = OMR_MAX(extensions->regionSize, extensions->initialMemorySize);
@@ -1371,7 +1372,7 @@ independentMemoryParameterVerification(J9JavaVM *javaVM, IDATA* memoryParameters
 			/* Gencon required at least three regions to start with (one for Tenure and two for Nursery - one for each half) */
 			extensions->initialMemorySize = OMR_MAX(extensions->regionSize * 3, extensions->initialMemorySize);
 		}
-
+		j9tty_printf(PORTLIB, "third Xms is: %llu\n", extensions->initialMemorySize);
 		if (extensions->initialMemorySize > maximumXmsValue) {
 			memoryOption = displayXmsOrInitialRAMPercentage(memoryParameters);
 			if (maximumXmsValueParameter) {
@@ -1385,7 +1386,7 @@ independentMemoryParameterVerification(J9JavaVM *javaVM, IDATA* memoryParameters
 		maximumXmsValue = extensions->initialMemorySize;
 		maximumXmsValueParameter = displayXmsOrInitialRAMPercentage(memoryParameters);
 	}
-
+	j9tty_printf(PORTLIB, "end Xms is: %llu\n", extensions->initialMemorySize);
 	/* verify -Xsoftmx is set between -Xms and -Xmx */
 	if (opt_XsoftmxSet) {
 		extensions->softMx = MM_Math::roundToFloor(extensions->heapAlignment, extensions->softMx);
@@ -3199,6 +3200,9 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 	 * and the original heap geometry from snapshot run remains unchanged.
 	 */
 	extensions->usablePhysicalMemory = omrsysinfo_get_addressable_physical_memory();
+	if (0.0 <= extensions->testRAMSizePercentage) {
+		extensions->usablePhysicalMemory = (uint64_t)(extensions->testRAMSizePercentage / 100.0 * extensions->usablePhysicalMemory);
+	}
 	/* If the thread count is being forced, check its validity and display a warning message if it is invalid, then mark it as invalid. */
 	if (extensions->gcThreadCountSpecified && (extensions->gcThreadCount < extensions->dispatcher->threadCountMaximum())) {
 		j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_GC_THREAD_VALUE_MUST_BE_ABOVE_WARN, (UDATA)extensions->dispatcher->threadCountMaximum());
@@ -3228,6 +3232,9 @@ gcReinitializeDefaultsForRestore(J9VMThread* vmThread)
 			 * always pass false to computeDefaultMaxHeapForJava().
 			 */
 			candidateSoftMx = extensions->computeDefaultMaxHeapForJava(false);
+			if (extensions->testContainerMemLimit) {
+				j9tty_printf(PORTLIB, "Current heapAlignment value is: %llu\n", extensions->heapAlignment);
+			}
 		}
 		/**
 		 * When dynamicHeapAdjustmentForRestore is set, the candidateSoftmx is

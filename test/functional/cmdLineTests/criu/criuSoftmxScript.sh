@@ -48,7 +48,7 @@ MEMORY=$((1024*MEMORY))
 echo "actual memory use"
 echo $MEMORY
 UPPER=26843545600
-if [ "$MEMORY" -ge "$UPPER"]; then
+if [ "$MEMORY" -ge "$UPPER" ]; then
     echo "Skip. Machine RAM too large"
     exit 1
 fi
@@ -95,9 +95,6 @@ echo "test output"
 cat testOutput;
 echo "end test output"
 echo ""
-heapAlignment=$(grep "Current heapAlignment value" testOutput | awk -F: '{print $2}')
-echo "heap"
-echo $heapAlignment
 echo "restore output"
 cat criuOutput
 echo "end restore output"
@@ -105,6 +102,9 @@ echo ""
 echo "restore verbose"
 cat output.txt
 echo "end restore verbose"
+heapAlignment=$(($(cat output.txt | grep "pageSize" | cut -d'"' -f 4)))
+echo "heap"
+echo $heapAlignment
 echo ""
 if grep -q "Unable to create a thread" criuOutput
 then
@@ -118,7 +118,15 @@ then
 fi
 # get the decimal representation of the current softmx value
 softMX=$(($(cat output.txt | grep "softMx" | cut -d'"' -f 4)))
+echo "actual softmx"
 echo $softMX
+echo "softmx to compare"
+echo $softMX
+echo $((softMX % heapAlignment))
+softMXhealAligned=$((softMX - (softMX % heapAlignment)))
+echo $softMXhealAligned
+processedsoftMX=$((softMXhealAligned - (softMXhealAligned%(64*1024))))
+echo $processedsoftMX
 if  [ "$7" != true ]; then
     if [ "$8" != true ]; then
         rm -rf testOutput criuOutput output.txt
@@ -133,13 +141,21 @@ if [ "$((${14}))" -eq 0 ]; then
     echo "Success condition: SoftMX value is 0 as expected."
     exit 1
 fi
-echo "$(($MEMORY*${14}/${15}))"
-if ["$((${15}))" -eq 0]; then
+echo ""
+echo ""
+echo "before alignment expected"
+echo $((MEMORY * ${14} / ${15}))
+echo "expected softmx"
+heapAligned=$(((MEMORY * ${14} / ${15}) - ((MEMORY * ${14} / ${15}) % heapAlignment)))
+echo $heapAligned
+expectedsoftMX=$((heapAligned-(heapAligned%(64*1024))))
+echo $expectedsoftMX
+if [ "$((${15}))" -eq 0 ]; then
     echo "Error condition: the denominator should never be 0."
     exit 1
 else
     echo "Both are not 0, we check the proposed softmx against the actual one."
-    if [ "$softMX" -eq "$(($MEMORY*${14}/${15}-$Memory%$heapAlignment))" ]; then
+    if [ "$processedsoftMX" -eq "$expectedsoftMX" ]; then
         echo "Success condition: The proposed softmx equals the actual one."
     else
         echo "Error condition: the proposed softmx doesn't equal the actual one."
